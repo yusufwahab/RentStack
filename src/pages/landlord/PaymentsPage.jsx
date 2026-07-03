@@ -64,7 +64,7 @@ export default function PaymentsPage() {
           {pLoading && <Spinner />}
           {pError && <ErrorMessage message={pError} onRetry={pRetry} />}
           {payments && payments.length > 0 && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden overflow-x-auto">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#E2E8F0] bg-[#FAFAF9]">
@@ -105,7 +105,7 @@ export default function PaymentsPage() {
           {displayedMisdirected.length > 0 && (
             <div className="space-y-4">
               {displayedMisdirected.map((m) => (
-                <div key={m.id} className="bg-white border border-[#E2E8F0] rounded-xl p-5">
+                <div key={m.id} className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="font-medium text-[#0F172A]">{m.senderAccountName}</p>

@@ -128,7 +128,7 @@ export default function TenantPortalPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-4 mb-6">
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-3">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 space-y-3">
               <h3 className="font-semibold text-[#0F172A] text-sm">Your Account</h3>
               {[
                 { label: "Account Number", value: tenant.virtualAccountNumber, mono: true },
@@ -141,7 +141,7 @@ export default function TenantPortalPage() {
                 </div>
               ))}
             </div>
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-3">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 space-y-3">
               <h3 className="font-semibold text-[#0F172A] text-sm">This Cycle</h3>
               {[
                 { label: "Rent Due", value: formatNaira(tenant.currentCycle.due) },
@@ -160,7 +160,7 @@ export default function TenantPortalPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 mb-6 flex gap-4 items-start">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 mb-6 flex gap-4 items-start">
             <img src={STATEMENT_IMAGE} alt="" className="w-24 h-24 rounded-lg object-cover shrink-0" />
             <div className="flex-1">
               <h3 className="font-semibold text-[#0F172A] text-sm mb-1">Download Your Statement</h3>
@@ -178,7 +178,7 @@ export default function TenantPortalPage() {
           </div>
 
           {history && history.length > 0 && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden overflow-x-auto">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden overflow-x-auto">
               <div className="px-5 py-4 border-b border-[#E2E8F0]">
                 <h3 className="font-semibold text-[#0F172A] text-sm">Payment History</h3>
               </div>

@@ -134,7 +134,7 @@ export default function TenantsPage() {
             <Link
               key={t.id}
               to={`/tenants/${t.id}`}
-              className="bg-white border border-[#E2E8F0] rounded-xl p-5 hover:border-[#C9A84C] transition-colors duration-200"
+              className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 hover:border-[#C9A84C] transition-colors duration-200"
             >
               <div className="flex items-center gap-3 mb-3">
                 <Avatar name={t.name} className="w-9 h-9" />

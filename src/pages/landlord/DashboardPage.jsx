@@ -11,7 +11,7 @@ const BANNER_IMAGE = "https://images.unsplash.com/photo-1486325212027-8081e48525
 
 function StatCard({ label, value, sub, color = "text-[#0F172A]" }) {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl p-5">
+    <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
       <p className="text-xs text-[#64748B] mb-1">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{value}</p>
       {sub && <p className="text-xs text-[#94A3B8] mt-1">{sub}</p>}
@@ -37,14 +37,11 @@ export default function DashboardPage() {
 
         {stats && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <StatCard label="Total Tenants" value={stats.totalTenants} />
               <StatCard label="Paid" value={stats.counts.paid} color="text-emerald-600" />
               <StatCard label="Partial" value={stats.counts.partial} color="text-amber-600" />
               <StatCard label="Unpaid" value={stats.counts.unpaid} color="text-red-600" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <StatCard
                 label={`Collected — ${stats.cycleLabel}`}
                 value={fmt(stats.totalCollected)}
@@ -56,15 +53,12 @@ export default function DashboardPage() {
                 value={`${stats.collectionRate}%`}
                 color={stats.collectionRate >= 80 ? "text-emerald-600" : "text-amber-600"}
               />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mb-8">
               <StatCard label="Overpaid" value={stats.counts.overpaid} color="text-blue-600" />
               <StatCard label="Disputed" value={stats.counts.disputed} color="text-orange-600" />
               <StatCard label="Misdirected" value={stats.misdirectedCount} color="text-orange-600" />
             </div>
 
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-[#E2E8F0]">
                 <h2 className="font-semibold text-[#0F172A] text-sm">Recent Payments</h2>
               </div>

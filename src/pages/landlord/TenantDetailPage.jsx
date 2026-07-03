@@ -63,7 +63,7 @@ export default function TenantDetailPage() {
 
       <div className="p-6 md:p-8 grid md:grid-cols-3 gap-6">
         <div className="md:col-span-1 space-y-4">
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-3">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 space-y-3">
             <h2 className="font-semibold text-[#0F172A] text-sm">Account Details</h2>
             {[
               { label: "Virtual Account Number", value: tenant.virtualAccountNumber, mono: true },
@@ -81,7 +81,7 @@ export default function TenantDetailPage() {
             ))}
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-3">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 space-y-3">
             <h2 className="font-semibold text-[#0F172A] text-sm">Current Cycle</h2>
             {[
               { label: "Rent Due", value: formatNaira(currentCycle.due) },
@@ -109,7 +109,7 @@ export default function TenantDetailPage() {
             )}
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
             <img src={STATEMENT_IMAGE} alt="" className="w-full h-24 object-cover rounded-lg mb-3" />
             <button
               onClick={downloadStatement}
@@ -140,7 +140,7 @@ export default function TenantDetailPage() {
             </p>
           )}
           {history && history.length > 0 && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden overflow-x-auto">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#E2E8F0] bg-[#FAFAF9]">

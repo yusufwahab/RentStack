@@ -69,17 +69,17 @@ export default function ReportsPage() {
         {data && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-white border border-[#E2E8F0] rounded-xl p-5">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
                 <p className="text-xs text-[#64748B] mb-1">Total Collected</p>
                 <p className="text-2xl font-bold text-[#0F172A]">{formatNaira(data.totalCollected)}</p>
               </div>
-              <div className="bg-white border border-[#E2E8F0] rounded-xl p-5">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
                 <p className="text-xs text-[#64748B] mb-1">Transactions</p>
                 <p className="text-2xl font-bold text-[#0F172A]">{data.payments.length}</p>
               </div>
             </div>
 
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden mb-8">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden mb-8">
               <div className="px-5 py-4 border-b border-[#E2E8F0]">
                 <h2 className="font-semibold text-[#0F172A] text-sm">Monthly Collection</h2>
               </div>
@@ -110,7 +110,7 @@ export default function ReportsPage() {
               </table>
             </div>
 
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden overflow-x-auto">
+            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden overflow-x-auto">
               <div className="px-5 py-4 border-b border-[#E2E8F0]">
                 <h2 className="font-semibold text-[#0F172A] text-sm">All Transactions</h2>
               </div>

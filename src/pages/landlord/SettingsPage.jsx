@@ -24,7 +24,7 @@ export default function SettingsPage() {
     <div className="p-6 md:p-8 max-w-2xl">
       <h1 className="text-xl font-semibold text-[#0F172A] mb-6">Settings</h1>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 mb-6">
+      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 mb-6">
         <div className="flex items-center gap-4 mb-6">
           <Avatar name={form.name || "R S"} bg="0F172A" color="ffffff" className="w-14 h-14" />
           <div>
@@ -60,7 +60,7 @@ export default function SettingsPage() {
         </form>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6">
+      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6">
         <h2 className="font-semibold text-[#0F172A] mb-1">Rent Per Unit</h2>
         <p className="text-sm text-[#64748B] mb-4">Default rent amount charged per unit per month.</p>
         <div className="flex items-center gap-3">

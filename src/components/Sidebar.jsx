@@ -44,10 +44,10 @@ export default function Sidebar() {
               to={to}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors duration-200 ${
+                `flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-lg text-sm border-l-2 transition-colors duration-200 ${
                   isActive
-                    ? "bg-white/10 text-white font-medium"
-                    : "text-[#94A3B8] hover:text-white hover:bg-white/5"
+                    ? "bg-white/10 text-white font-medium border-[#C9A84C]"
+                    : "text-[#94A3B8] border-transparent hover:text-white hover:bg-white/5"
                 }`
               }
             >
