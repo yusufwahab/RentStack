@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAsync } from "../../hooks/useAsync";
 import { getAllTenants, addTenant } from "../../services/tenantService";
 import Spinner from "../../components/ui/Spinner";
@@ -76,9 +76,10 @@ function AddTenantModal({ onClose, onAdded }) {
 }
 
 export default function TenantsPage() {
+  const [searchParams] = useSearchParams();
   const { data: tenants, loading, error, retry } = useAsync(getAllTenants);
   const [list, setList] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(searchParams.get("action") === "add");
   const [search, setSearch] = useState("");
 
   const source = list ?? tenants ?? [];

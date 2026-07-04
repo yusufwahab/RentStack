@@ -1,11 +1,17 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useAsync } from "../../hooks/useAsync";
-import { getDashboardStats } from "../../services/dashboardService";
+import { getDashboardStats, CYCLE_OPTIONS } from "../../services/dashboardService";
+import { exportCSV } from "../../services/reportService";
 import Spinner from "../../components/ui/Spinner";
 import ErrorMessage from "../../components/ui/ErrorMessage";
 import StatusBadge from "../../components/ui/StatusBadge";
+import Avatar from "../../components/ui/Avatar";
 import Icon from "../../components/ui/Icon";
-import { formatNaira as fmt, formatDate, paymentTypeBadge } from "../../utils/format";
+import { formatNaira as fmt, formatDate, formatDateTime, paymentTypeBadge } from "../../utils/format";
+
+const PROPERTY_IMAGE = "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800&q=80&auto=format&fit=crop";
 
 function StatCard({ icon, label, value, sub, color = "text-[#0B1F17]", iconColor = "text-[#15803D] bg-[#ECFDF3]" }) {
   return (
@@ -22,120 +28,261 @@ function StatCard({ icon, label, value, sub, color = "text-[#0B1F17]", iconColor
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
-  const { data: stats, loading, error, retry } = useAsync(getDashboardStats);
+  const [cycle, setCycle] = useState(CYCLE_OPTIONS[0].key);
+  const { data: stats, loading, error, retry } = useAsync(() => getDashboardStats(cycle), [cycle]);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleDownloadReport() {
+    setExporting(true);
+    try {
+      const csv = await exportCSV();
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "rentstack-report.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
-    <div>
-      <div className="px-6 md:px-8 pt-8 pb-2">
-        <p className="text-[#64748B] text-sm">Good day,</p>
-        <h1 className="text-[#0B1F17] text-2xl font-bold">{currentUser?.name}</h1>
-        <p className="text-[#94A3B8] text-xs mt-0.5">{currentUser?.property?.name}</p>
+    <div className="p-6 md:p-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
+        <div>
+          <p className="text-[#64748B] text-sm">Good day,</p>
+          <h1 className="text-[#0B1F17] text-2xl font-bold">{currentUser?.name}</h1>
+          <p className="text-[#94A3B8] text-xs mt-0.5">{currentUser?.property?.name}</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#64748B] mb-1">Viewing cycle</label>
+          <select
+            value={cycle}
+            onChange={(e) => setCycle(e.target.value)}
+            className="border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#15803D]/40"
+          >
+            {CYCLE_OPTIONS.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <div className="p-6 md:p-8">
-        {loading && <Spinner />}
-        {error && <ErrorMessage message={error} onRetry={retry} />}
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-2 mt-4 mb-6">
+        <Link
+          to="/tenants?action=add"
+          className="flex items-center gap-1.5 bg-[#15803D] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#116932] transition-colors duration-200"
+        >
+          <Icon name="plus" className="w-4 h-4" />
+          Add Tenant
+        </Link>
+        <Link
+          to="/payments?tab=misdirected"
+          className="flex items-center gap-1.5 border border-[#E5E7EB] text-[#0B1F17] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#F7FAF8] transition-colors duration-200"
+        >
+          <Icon name="exclamation" className="w-4 h-4" />
+          View Misdirected Payments
+        </Link>
+        <button
+          onClick={handleDownloadReport}
+          disabled={exporting}
+          className="flex items-center gap-1.5 border border-[#E5E7EB] text-[#0B1F17] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#F7FAF8] transition-colors duration-200 disabled:opacity-60"
+        >
+          <Icon name="download" className="w-4 h-4" />
+          {exporting ? "Exporting…" : "Download This Month's Report"}
+        </button>
+      </div>
 
-        {stats && (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <StatCard icon="users" label="Total Tenants" value={stats.totalTenants} />
-              <StatCard
-                icon="checkCircle"
-                label="Paid"
-                value={stats.counts.paid}
-                color="text-emerald-600"
-                iconColor="text-emerald-600 bg-emerald-50"
+      {loading && <Spinner />}
+      {error && <ErrorMessage message={error} onRetry={retry} />}
+
+      {stats && (
+        <>
+          {/* Misdirected payments alert — never buried */}
+          {stats.misdirectedCount > 0 && (
+            <div className="flex items-center justify-between gap-4 bg-[#FEE2E2] border border-red-200 rounded-2xl px-5 py-4 mb-6">
+              <div className="flex items-center gap-3">
+                <Icon name="exclamation" className="w-5 h-5 text-red-600 shrink-0" />
+                <p className="text-sm text-red-800">
+                  <span className="font-medium">
+                    {stats.misdirectedCount} misdirected payment{stats.misdirectedCount > 1 ? "s" : ""}
+                  </span>{" "}
+                  need resolution.
+                </p>
+              </div>
+              <Link
+                to="/payments?tab=misdirected"
+                className="shrink-0 text-sm font-medium text-red-700 hover:text-red-900 transition-colors duration-200 whitespace-nowrap"
+              >
+                Review now →
+              </Link>
+            </div>
+          )}
+
+          {/* Financial KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <StatCard icon="users" label="Total Tenants" value={stats.totalTenants} />
+            <StatCard icon="banknote" label={`Expected — ${stats.cycleLabel}`} value={fmt(stats.totalExpected)} />
+            <StatCard
+              icon="checkCircle"
+              label="Collected This Cycle"
+              value={fmt(stats.totalCollected)}
+              color="text-emerald-600"
+              iconColor="text-emerald-600 bg-emerald-50"
+            />
+            <StatCard
+              icon="scaleBalance"
+              label="Outstanding"
+              value={fmt(stats.outstanding)}
+              color="text-red-600"
+              iconColor="text-red-600 bg-red-50"
+            />
+          </div>
+
+          {/* Collection rate — impossible to miss */}
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-6 mb-6">
+            <div className="flex items-baseline justify-between mb-3">
+              <p className="text-sm font-medium text-[#0B1F17]">
+                <span className="text-3xl font-bold">{stats.collectionRate}%</span> collected this cycle
+              </p>
+              <p className="text-xs text-[#64748B]">
+                {fmt(stats.totalCollected)} of {fmt(stats.totalExpected)}
+              </p>
+            </div>
+            <div className="h-2.5 w-full bg-[#F1F5F9] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#C9A84C] rounded-full"
+                style={{ width: `${Math.min(stats.collectionRate, 100)}%` }}
               />
-              <StatCard
-                icon="arrowsRightLeft"
-                label="Partial"
-                value={stats.counts.partial}
-                color="text-amber-600"
-                iconColor="text-amber-600 bg-amber-50"
-              />
-              <StatCard
-                icon="exclamation"
-                label="Unpaid"
-                value={stats.counts.unpaid}
-                color="text-red-600"
-                iconColor="text-red-600 bg-red-50"
-              />
-              <StatCard
-                icon="banknote"
-                label={`Collected — ${stats.cycleLabel}`}
-                value={fmt(stats.totalCollected)}
-                sub={`of ${fmt(stats.totalExpected)} expected`}
-              />
-              <StatCard
-                icon="scaleBalance"
-                label="Outstanding"
-                value={fmt(stats.outstanding)}
-                color="text-red-600"
-                iconColor="text-red-600 bg-red-50"
-              />
-              <StatCard
-                icon="chartBar"
-                label="Collection Rate"
-                value={`${stats.collectionRate}%`}
-                color={stats.collectionRate >= 80 ? "text-emerald-600" : "text-amber-600"}
-                iconColor={stats.collectionRate >= 80 ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50"}
-              />
-              <StatCard
-                icon="banknote"
-                label="Overpaid"
-                value={stats.counts.overpaid}
-                color="text-blue-600"
-                iconColor="text-blue-600 bg-blue-50"
-              />
-              <StatCard
-                icon="exclamation"
-                label="Disputed"
-                value={stats.counts.disputed}
-                color="text-orange-600"
-                iconColor="text-orange-600 bg-orange-50"
-              />
-              <StatCard
-                icon="exclamation"
-                label="Misdirected"
-                value={stats.misdirectedCount}
-                color="text-orange-600"
-                iconColor="text-orange-600 bg-orange-50"
-              />
+            </div>
+          </div>
+
+          {/* Status breakdown */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <StatCard icon="checkCircle" label="Paid" value={stats.counts.paid} color="text-emerald-600" iconColor="text-emerald-600 bg-emerald-50" />
+            <StatCard icon="arrowsRightLeft" label="Partial" value={stats.counts.partial} color="text-amber-600" iconColor="text-amber-600 bg-amber-50" />
+            <StatCard icon="exclamation" label="Unpaid" value={stats.counts.unpaid} color="text-red-600" iconColor="text-red-600 bg-red-50" />
+            <StatCard icon="banknote" label="Overpaid" value={stats.counts.overpaid} color="text-blue-600" iconColor="text-blue-600 bg-blue-50" />
+            <StatCard icon="exclamation" label="Disputed" value={stats.counts.disputed} color="text-orange-600" iconColor="text-orange-600 bg-orange-50" />
+          </div>
+
+          {/* Tenant status table + Recent activity */}
+          <div className="grid lg:grid-cols-3 gap-6 mb-6">
+            <div className="lg:col-span-2 bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E5E7EB]">
+                <h2 className="font-semibold text-[#0B1F17] text-sm">Tenant Payment Status — {stats.cycleLabel}</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#E5E7EB] bg-[#F7FAF8]">
+                      {["Tenant", "Unit", "Status", "Last Payment"].map((h) => (
+                        <th key={h} className="text-left px-5 py-3 text-xs font-medium text-[#64748B] whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.tenantRows.map((t) => (
+                      <tr key={t.id} className="border-b border-[#F1F5F9] last:border-0">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={t.name} className="w-7 h-7" />
+                            <span className="text-[#0B1F17] whitespace-nowrap">{t.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-[#64748B] whitespace-nowrap">{t.unit}</td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status={t.cycleStatus} />
+                            {t.overdue && <StatusBadge status="OVERDUE" />}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-[#64748B] whitespace-nowrap">
+                          {t.daysSinceLastPayment === null ? "No payments yet" : `${t.daysSinceLastPayment}d ago`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-[#E5E7EB]">
-                <h2 className="font-semibold text-[#0B1F17] text-sm">Recent Payments</h2>
+                <h2 className="font-semibold text-[#0B1F17] text-sm">Recent Activity</h2>
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[#E5E7EB] bg-[#F7FAF8]">
-                    {["Tenant", "Unit", "Amount", "Type", "Date"].map((h) => (
-                      <th key={h} className="text-left px-5 py-3 text-xs font-medium text-[#64748B]">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.recentPayments.map((p) => (
-                    <tr key={p.id} className="border-b border-[#F1F5F9] last:border-0">
-                      <td className="px-5 py-3 text-[#0B1F17]">{p.tenantName}</td>
-                      <td className="px-5 py-3 text-xs text-[#64748B]">{p.unit}</td>
-                      <td className="px-5 py-3 font-medium text-[#0B1F17]">{fmt(p.amount)}</td>
-                      <td className="px-5 py-3">
+              <div className="divide-y divide-[#F1F5F9] max-h-105 overflow-y-auto">
+                {stats.recentPayments.map((p) => (
+                  <div key={p.id} className="px-5 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-[#0B1F17] truncate">{p.tenantName}</p>
+                      <p className="text-xs text-[#94A3B8] mt-0.5">{formatDateTime(p.date)}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-medium text-[#0B1F17]">{fmt(p.amount)}</p>
+                      <div className="mt-1">
                         <StatusBadge status={paymentTypeBadge(p.type)} />
-                      </td>
-                      <td className="px-5 py-3 text-xs text-[#64748B]">{formatDate(p.date)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </>
-        )}
-      </div>
+          </div>
+
+          {/* Property + upcoming due dates */}
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
+              <img src={PROPERTY_IMAGE} alt={stats.property.name} className="w-full h-40 object-cover" />
+              <div className="p-5 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold text-[#0B1F17]">{stats.property.name}</h3>
+                  <p className="text-xs text-[#64748B] mt-0.5">{stats.property.address}</p>
+                </div>
+                <div className="flex gap-6 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-[#0B1F17]">{stats.property.totalUnits}</p>
+                    <p className="text-xs text-[#64748B]">Total Units</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-[#15803D]">{stats.property.occupiedUnits}</p>
+                    <p className="text-xs text-[#64748B]">Occupied</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E5E7EB]">
+                <h2 className="font-semibold text-[#0B1F17] text-sm">Due in the Next 7 Days</h2>
+              </div>
+              {stats.upcomingDue.length === 0 ? (
+                <p className="text-sm text-[#64748B] text-center py-10 px-5">Nothing due in the next week.</p>
+              ) : (
+                <div className="divide-y divide-[#F1F5F9]">
+                  {stats.upcomingDue.map((t) => (
+                    <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-[#0B1F17] truncate">{t.name}</p>
+                        <p className="text-xs text-[#64748B]">{t.unit}</p>
+                      </div>
+                      <p className="text-xs text-[#94A3B8] shrink-0 whitespace-nowrap">{formatDate(t.dueDate)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

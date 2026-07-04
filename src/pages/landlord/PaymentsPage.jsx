@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAsync } from "../../hooks/useAsync";
 import {
   getAllPayments,
@@ -16,10 +17,11 @@ import { formatNaira, formatDateTime, formatDate, paymentTypeBadge } from "../..
 const MISDIRECTED_EMPTY_IMAGE = "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&q=80&auto=format&fit=crop";
 
 export default function PaymentsPage() {
+  const [searchParams] = useSearchParams();
   const { data: payments, loading: pLoading, error: pError, retry: pRetry } = useAsync(getAllPayments);
   const { data: misdirected, loading: mLoading, error: mError, retry: mRetry } = useAsync(getMisdirectedPayments);
   const { data: tenants } = useAsync(getAllTenants);
-  const [tab, setTab] = useState("all");
+  const [tab, setTab] = useState(searchParams.get("tab") === "misdirected" ? "misdirected" : "all");
   const [resolving, setResolving] = useState(null);
   const [mList, setMList] = useState(null);
 

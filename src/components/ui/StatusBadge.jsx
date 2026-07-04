@@ -8,16 +8,17 @@ const STATUS_STYLES = {
   UNRESOLVED: "bg-orange-50 text-orange-700 border-orange-200",
   RETURNED: "bg-[#F1F5F9] text-[#64748B] border-[#E5E7EB]",
   RESOLVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  OVERDUE: "bg-red-50 text-red-600 border-red-200",
 };
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status, label }) {
   return (
     <span
       className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full border ${
         STATUS_STYLES[status] || "bg-gray-50 text-gray-600 border-gray-200"
       }`}
     >
-      {status}
+      {label || status}
     </span>
   );
 }
