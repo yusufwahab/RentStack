@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useAsync } from "../../hooks/useAsync";
 import { getDashboardStats, CYCLE_OPTIONS } from "../../services/dashboardService";
 import { exportCSV } from "../../services/reportService";
+import { getKycAlerts } from "../../services/kycService";
 import Spinner from "../../components/ui/Spinner";
 import ErrorMessage from "../../components/ui/ErrorMessage";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -30,6 +31,7 @@ export default function DashboardPage() {
   const { currentUser } = useAuth();
   const [cycle, setCycle] = useState(CYCLE_OPTIONS[0].key);
   const { data: stats, loading, error, retry } = useAsync(() => getDashboardStats(cycle), [cycle]);
+  const { data: kycAlerts } = useAsync(getKycAlerts);
   const [exporting, setExporting] = useState(false);
 
   async function handleDownloadReport() {
@@ -122,6 +124,33 @@ export default function DashboardPage() {
               >
                 Review now →
               </Link>
+            </div>
+          )}
+
+          {/* KYC tier-change alerts */}
+          {kycAlerts && kycAlerts.length > 0 && (
+            <div className="space-y-2 mb-6">
+              {kycAlerts.map((alert) => (
+                <div
+                  key={alert.tenantId}
+                  className="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon name="shieldCheck" className="w-5 h-5 text-amber-600 shrink-0" />
+                    <p className="text-sm text-amber-900">
+                      <span className="font-medium">{alert.tenantName}</span>'s KYC tier changed from{" "}
+                      <span className="font-medium">{alert.from}</span> to{" "}
+                      <span className="font-medium">{alert.to}</span> on {formatDate(alert.date)} — {alert.reason}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/tenants/${alert.tenantId}`}
+                    className="shrink-0 text-sm font-medium text-amber-800 hover:text-amber-900 transition-colors duration-200 whitespace-nowrap"
+                  >
+                    View tenant →
+                  </Link>
+                </div>
+              ))}
             </div>
           )}
 

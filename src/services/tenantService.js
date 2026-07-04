@@ -92,3 +92,12 @@ export async function provisionVirtualAccount(tenantData) {
     });
   }
 }
+
+// MOCK: Simulates generating a shareable, read-only link to a tenant's
+// verified statement — the real version would resolve to a signed page.
+export async function getShareableStatementLink(id) {
+  if (USE_MOCK) {
+    const token = btoa(`stmt:${id}:${Date.now()}`).replace(/=+$/, "");
+    return mockDelay({ url: `https://rentstack.com/statements/${token}` }, 400);
+  }
+}

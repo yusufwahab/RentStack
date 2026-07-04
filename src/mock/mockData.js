@@ -31,6 +31,7 @@ export const mockTenants = [
     rentAmount: 85000,
     status: "PAID",
     currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0 },
+    kycTier: "Tier 3",
   },
   {
     id: "t-002",
@@ -45,6 +46,7 @@ export const mockTenants = [
     rentAmount: 85000,
     status: "PAID",
     currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0 },
+    kycTier: "Tier 3",
   },
   {
     id: "t-003",
@@ -59,6 +61,7 @@ export const mockTenants = [
     rentAmount: 85000,
     status: "PARTIAL",
     currentCycle: { due: 85000, paid: 45000, balance: 40000, credit: 0 },
+    kycTier: "Tier 2",
   },
   {
     id: "t-004",
@@ -73,6 +76,13 @@ export const mockTenants = [
     rentAmount: 85000,
     status: "PARTIAL",
     currentCycle: { due: 85000, paid: 60000, balance: 25000, credit: 0 },
+    kycTier: "Tier 2",
+    kycTierChange: {
+      from: "Tier 3",
+      to: "Tier 2",
+      date: "2026-06-28",
+      reason: "BVN re-verification required by bank — account downgraded pending update.",
+    },
   },
   {
     id: "t-005",
@@ -87,6 +97,7 @@ export const mockTenants = [
     rentAmount: 85000,
     status: "UNPAID",
     currentCycle: { due: 85000, paid: 0, balance: 85000, credit: 0 },
+    kycTier: "Tier 1",
   },
   {
     id: "t-006",
@@ -101,6 +112,7 @@ export const mockTenants = [
     rentAmount: 85000,
     status: "OVERPAID",
     currentCycle: { due: 85000, paid: 100000, balance: 0, credit: 15000 },
+    kycTier: "Tier 3",
   },
   {
     id: "t-007",
@@ -117,6 +129,7 @@ export const mockTenants = [
     currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0 },
     disputeNote:
       "Payment of ₦85,000 was received on this account, but the sender name (\"Kelechi Nwosu\") does not match the registered tenant. Flagged for manual review before the payment is confirmed.",
+    kycTier: "Tier 3",
   },
   {
     id: "t-008",
@@ -132,6 +145,7 @@ export const mockTenants = [
     rentAmount: 85000,
     status: "CLOSED",
     currentCycle: { due: 0, paid: 0, balance: 0, credit: 0 },
+    kycTier: "Tier 2",
   },
 ];
 

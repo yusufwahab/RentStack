@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAsync } from "../../hooks/useAsync";
-import { getAllTenants, getTenantPaymentHistory } from "../../services/tenantService";
+import { getAllTenants, getTenantPaymentHistory, getShareableStatementLink } from "../../services/tenantService";
 import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Avatar from "../../components/ui/Avatar";
 import PageBanner from "../../components/ui/PageBanner";
 import Icon from "../../components/ui/Icon";
+import ReliabilityScoreCard from "../../components/ui/ReliabilityScoreCard";
+import ShareLinkButton from "../../components/ui/ShareLinkButton";
 import { formatNaira, formatDate, paymentTypeBadge } from "../../utils/format";
 
 const BANNER_IMAGE = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&q=80&auto=format&fit=crop";
@@ -176,19 +178,26 @@ export default function TenantPortalPage() {
             </div>
           </div>
 
+          <div className="mb-6">
+            <ReliabilityScoreCard tenantId={tenant.id} />
+          </div>
+
           <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5 mb-6 flex gap-4 items-start">
             <img src={STATEMENT_IMAGE} alt="" className="w-24 h-24 rounded-lg object-cover shrink-0" />
             <div className="flex-1">
               <h3 className="font-semibold text-[#0B1F17] text-sm mb-1">Download Your Statement</h3>
-              <button
-                onClick={downloadStatement}
-                disabled={!history || history.length === 0}
-                className="flex items-center gap-1.5 bg-[#15803D] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#116932] transition-colors duration-200 disabled:opacity-50"
-              >
-                <Icon name="document" className="w-4 h-4" />
-                Download Statement
-              </button>
-              <p className="text-xs text-[#64748B] text-center mt-3">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={downloadStatement}
+                  disabled={!history || history.length === 0}
+                  className="flex items-center gap-1.5 bg-[#15803D] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#116932] transition-colors duration-200 disabled:opacity-50"
+                >
+                  <Icon name="document" className="w-4 h-4" />
+                  Download Statement
+                </button>
+                <ShareLinkButton getLink={() => getShareableStatementLink(tenant.id)} label="Share Statement" />
+              </div>
+              <p className="text-xs text-[#64748B] mt-3">
                 Your statement is a verified record of every rent payment you have made. Share it with banks, employers, or future landlords.
               </p>
             </div>

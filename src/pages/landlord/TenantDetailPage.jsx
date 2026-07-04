@@ -1,13 +1,17 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useAsync } from "../../hooks/useAsync";
-import { getTenantById, getTenantPaymentHistory, offboardTenant } from "../../services/tenantService";
+import { getTenantById, getTenantPaymentHistory, offboardTenant, getShareableStatementLink } from "../../services/tenantService";
+import { getTenantKyc } from "../../services/kycService";
+import { getSmsLogForTenant } from "../../services/smsService";
 import Spinner from "../../components/ui/Spinner";
 import ErrorMessage from "../../components/ui/ErrorMessage";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Avatar from "../../components/ui/Avatar";
 import PageBanner from "../../components/ui/PageBanner";
 import Icon from "../../components/ui/Icon";
-import { formatNaira, formatDate, paymentTypeBadge, paymentTypeLabel } from "../../utils/format";
+import ReliabilityScoreCard from "../../components/ui/ReliabilityScoreCard";
+import ShareLinkButton from "../../components/ui/ShareLinkButton";
+import { formatNaira, formatDate, formatDateTime, paymentTypeBadge, paymentTypeLabel } from "../../utils/format";
 
 const BANNER_IMAGE = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&q=80&auto=format&fit=crop";
 const STATEMENT_IMAGE = "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&q=80&auto=format&fit=crop";
@@ -18,6 +22,8 @@ export default function TenantDetailPage() {
 
   const { data: tenant, loading: tLoading, error: tError, retry: tRetry } = useAsync(() => getTenantById(id), [id]);
   const { data: history, loading: hLoading, error: hError, retry: hRetry } = useAsync(() => getTenantPaymentHistory(id), [id]);
+  const { data: kyc } = useAsync(() => getTenantKyc(id), [id]);
+  const { data: smsLog } = useAsync(() => getSmsLogForTenant(id), [id]);
 
   async function handleOffboard() {
     if (!tenant || !window.confirm(`Offboard ${tenant.name}? This cannot be undone.`)) return;
@@ -110,16 +116,43 @@ export default function TenantDetailPage() {
             )}
           </div>
 
+          {kyc && (
+            <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-[#0B1F17] text-sm">KYC Tier</h2>
+                <span className="text-xs font-medium px-2.5 py-1 rounded-full border bg-[#ECFDF3] text-[#15803D] border-emerald-200">
+                  {kyc.tier}
+                </span>
+              </div>
+              <p className="text-xs text-[#64748B]">{kyc.limit}</p>
+              {kyc.tierChange && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg leading-relaxed">
+                  Changed from {kyc.tierChange.from} to {kyc.tierChange.to} on {formatDate(kyc.tierChange.date)} —{" "}
+                  {kyc.tierChange.reason}
+                </p>
+              )}
+            </div>
+          )}
+
+          <ReliabilityScoreCard tenantId={id} />
+
           <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5">
             <img src={STATEMENT_IMAGE} alt="" className="w-full h-24 object-cover rounded-lg mb-3" />
-            <button
-              onClick={downloadStatement}
-              disabled={!history || history.length === 0}
-              className="w-full flex items-center justify-center gap-1.5 border border-[#E5E7EB] text-[#0B1F17] py-2 rounded-lg text-sm hover:bg-[#F7FAF8] transition-colors duration-200 disabled:opacity-50"
-            >
-              <Icon name="document" className="w-4 h-4" />
-              Download Statement
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={downloadStatement}
+                disabled={!history || history.length === 0}
+                className="w-full flex items-center justify-center gap-1.5 border border-[#E5E7EB] text-[#0B1F17] py-2 rounded-lg text-sm hover:bg-[#F7FAF8] transition-colors duration-200 disabled:opacity-50"
+              >
+                <Icon name="document" className="w-4 h-4" />
+                Download Statement
+              </button>
+              <ShareLinkButton
+                getLink={() => getShareableStatementLink(id)}
+                label="Share Statement"
+                className="w-full justify-center"
+              />
+            </div>
           </div>
 
           {tenant.status !== "CLOSED" && (
@@ -166,6 +199,26 @@ export default function TenantDetailPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {smsLog && smsLog.length > 0 && (
+            <div className="mt-6 bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E5E7EB] flex items-center gap-2">
+                <Icon name="chatBubble" className="w-4 h-4 text-[#64748B]" />
+                <h2 className="font-semibold text-[#0B1F17] text-sm">SMS Notifications Sent</h2>
+              </div>
+              <div className="divide-y divide-[#F1F5F9] max-h-64 overflow-y-auto">
+                {smsLog.map((sms) => (
+                  <div key={sms.id} className="px-5 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-medium text-[#0B1F17]">{sms.to}</span>
+                      <span className="text-xs text-[#94A3B8] whitespace-nowrap">{formatDateTime(sms.sentAt)}</span>
+                    </div>
+                    <p className="text-xs text-[#64748B] mt-1 leading-relaxed">{sms.message}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
