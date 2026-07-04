@@ -22,12 +22,30 @@ Supabase Auth is used as-is for landlord accounts (email/password). The
 
 ## 2. Set up Nomba
 
-1. Get sandbox credentials from your Nomba dashboard: `accountId`, `client_id`, `client_secret`.
-2. Set `NOMBA_BASE_URL=https://sandbox.nomba.com` while testing; switch to
-   `https://api.nomba.com` when you go live.
-3. In the Nomba dashboard's Webhook Setup, register:
-   `https://<your-deployed-backend>/api/webhooks/nomba`
-   and copy the webhook secret into `NOMBA_WEBHOOK_SECRET`.
+RentStack's Nomba credentials are a **sub-account under a parent business
+account** — the credentials email gives you both IDs, plus separate
+TEST and LIVE client id/private key pairs. Two rules that matter
+everywhere in this codebase (confirmed from Nomba's docs, not assumed):
+
+- The `accountId` header is **always the parent account id** — on auth,
+  virtual account creation, and transfers alike.
+- The **sub-account id** goes in the URL path, only on the two endpoints
+  that move/collect money (create virtual account, bank transfer).
+
+1. From the credentials email: `NOMBA_PARENT_ACCOUNT_ID` = "Main (parent)
+   Account ID", `NOMBA_SUB_ACCOUNT_ID` = "Your sub-account ID".
+2. While `NOMBA_BASE_URL=https://sandbox.nomba.com`, use the **TEST**
+   Client ID/Private key. Switch both the base URL and the credentials
+   together when you go live — never mix TEST credentials with the live
+   host or vice versa.
+3. "Private key" in Nomba's dashboard = `NOMBA_CLIENT_SECRET` here (the
+   API itself calls it `client_secret`).
+4. In the Nomba dashboard's Webhook Setup (or their onboarding form),
+   register `https://<your-deployed-backend>/api/webhooks/nomba` and
+   put the signing key they give you into `NOMBA_WEBHOOK_SECRET`.
+5. Sub-account transfers must be enabled by Nomba before
+   `POST /api/payments/:id/return` will work — if it 403s, that's likely why;
+   ask them to enable it for your sub-account.
 
 ## 3. Set up Termii (SMS)
 
@@ -42,6 +60,34 @@ cp .env.example .env   # then fill in the values above
 npm install
 npm run dev             # http://localhost:4000
 ```
+
+## 5. Deploy (so Nomba has a public webhook URL to call)
+
+Nomba's servers can't reach `localhost` — you need a real URL before
+submitting a webhook URL to them. Steps for Render (free tier, no CLI
+needed):
+
+1. Push this repo to GitHub (if not already).
+2. In the [Render dashboard](https://dashboard.render.com), **New → Blueprint**,
+   point it at your repo. Render will detect `backend/render.yaml`
+   automatically and create the service (root dir is already set to `backend`).
+   - If you'd rather not use a Blueprint: **New → Web Service**, connect the
+     repo, set **Root Directory** to `backend`, **Build Command** to
+     `npm install`, **Start Command** to `npm start`.
+3. In the service's **Environment** tab, fill in every variable marked
+   `sync: false` in `render.yaml` — these are the same values from your
+   local `.env` (Supabase keys, Nomba credentials, Termii key). Render
+   never shows these back to you in plaintext after saving, so keep your
+   local `.env` as your own record.
+4. Deploy. Once it's live, your webhook URL is:
+   `https://<your-service-name>.onrender.com/api/webhooks/nomba`
+5. Submit that URL (plus your Nomba sub-account ID) back to Nomba, and put
+   the same `NOMBA_WEBHOOK_SECRET` they gave you into both your local
+   `.env` and the Render environment variables.
+
+Free-tier Render services spin down after inactivity and take ~30-60s to
+wake on the next request — fine for hackathon judging, worth upgrading
+before any real launch.
 
 `GET /health` should return `{ "status": "ok" }` once it's running.
 

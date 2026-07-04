@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: rentstack-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: NOMBA_BASE_URL
+        value: https://sandbox.nomba.com
+      - key: NOMBA_PARENT_ACCOUNT_ID
+        sync: false
+      - key: NOMBA_SUB_ACCOUNT_ID
+        sync: false
+      - key: NOMBA_CLIENT_ID
+        sync: false
+      - key: NOMBA_CLIENT_SECRET
+        sync: false
+      - key: NOMBA_WEBHOOK_SECRET
+        sync: false
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_SENDER_ID
+        value: RentStack
+      - key: INTERNAL_WEBHOOK_ALLOW_UNSIGNED
+        value: "false"

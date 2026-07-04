@@ -20,7 +20,14 @@ export const env = {
 
   nomba: {
     baseUrl: process.env.NOMBA_BASE_URL || "https://sandbox.nomba.com",
-    accountId: required("NOMBA_ACCOUNT_ID"),
+    // The `accountId` header is ALWAYS the parent account, for every call —
+    // auth, virtual account creation, transfers. The sub-account id is a
+    // separate value that gets appended to the URL path on the specific
+    // endpoints that are sub-account-scoped. See nombaService.js.
+    parentAccountId: required("NOMBA_PARENT_ACCOUNT_ID"),
+    subAccountId: required("NOMBA_SUB_ACCOUNT_ID"),
+    // Nomba's dashboard labels this "Private key" — it's the same value
+    // as the `client_secret` field the token-issue endpoint expects.
     clientId: required("NOMBA_CLIENT_ID"),
     clientSecret: required("NOMBA_CLIENT_SECRET"),
     webhookSecret: required("NOMBA_WEBHOOK_SECRET"),

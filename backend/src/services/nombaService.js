@@ -8,13 +8,23 @@ import { ApiError } from "../utils/ApiError.js";
 // Endpoints/payload shapes below are taken directly from Nomba's published
 // docs at developer.nomba.com (fetched while building this file), NOT
 // guessed:
-//   Auth              POST /v1/auth/token/issue
-//   Create VA         POST /v1/accounts/virtual
-//   Bank codes        GET  /v1/transfers/banks
-//   Bank lookup       POST /v1/transfers/bank/lookup
-//   Bank transfer     POST /v2/transfers/bank
+//   Auth              POST /v1/auth/token/issue                       (accountId header = PARENT)
+//   Create VA         POST /v1/accounts/virtual/{subAccountId}        (accountId header = PARENT)
+//   Bank codes        GET  /v1/transfers/banks                       (accountId header = PARENT)
+//   Bank lookup       POST /v1/transfers/bank/lookup                 (accountId header = PARENT)
+//   Bank transfer     POST /v2/transfers/bank/{subAccountId}          (accountId header = PARENT)
 //   Webhook signature: HMAC-SHA256 over
 //     event_type:requestId:userId:walletId:transactionId:type:time:responseCode:timestamp
+//
+// RentStack's Nomba credentials are a SUB-ACCOUNT under a parent business
+// account. Nomba's docs confirm the `accountId` header is *always* the
+// parent account id, on every call including sub-account-scoped ones — the
+// sub-account id instead goes in the URL path, only on the two endpoints
+// that move/collect money (virtual account creation, bank transfer). Bank
+// codes/lookup are read-only reference data and stay parent-scoped.
+// NOTE: Nomba's docs state "Sub-account transfers must be enabled by Nomba
+// before use" — if `transferToBank` 403s, that's likely why; ask Nomba to
+// enable it for your sub-account.
 //
 // ONE THING IS NOT CONFIRMED: the exact field names inside the `data`
 // object of a `payment_success` webhook for a *virtual account credit*
@@ -34,7 +44,7 @@ let cachedBankCodes = null; // Nomba says these "rarely change"
 function baseHeaders(accessToken) {
   return {
     Authorization: `Bearer ${accessToken}`,
-    accountId: env.nomba.accountId,
+    accountId: env.nomba.parentAccountId,
     "Content-Type": "application/json",
   };
 }
@@ -58,7 +68,7 @@ export async function getAccessToken() {
 
   const body = await requestJson(`${env.nomba.baseUrl}/v1/auth/token/issue`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", accountId: env.nomba.accountId },
+    headers: { "Content-Type": "application/json", accountId: env.nomba.parentAccountId },
     body: JSON.stringify({
       grant_type: "client_credentials",
       client_id: env.nomba.clientId,
@@ -84,7 +94,7 @@ export async function createVirtualAccount({ accountRef, accountName, bvn, expir
   }
 
   const accessToken = await getAccessToken();
-  const body = await requestJson(`${env.nomba.baseUrl}/v1/accounts/virtual`, {
+  const body = await requestJson(`${env.nomba.baseUrl}/v1/accounts/virtual/${env.nomba.subAccountId}`, {
     method: "POST",
     headers: baseHeaders(accessToken),
     body: JSON.stringify({ accountRef, accountName, bvn, expiryDate, expectedAmount }),
@@ -133,7 +143,7 @@ export async function lookupBankAccount({ accountNumber, bankCode }) {
 // extractIncomingTransfer below).
 export async function transferToBank({ amount, accountNumber, bankCode, accountName, merchantTxRef, narration }) {
   const accessToken = await getAccessToken();
-  const body = await requestJson(`${env.nomba.baseUrl}/v2/transfers/bank`, {
+  const body = await requestJson(`${env.nomba.baseUrl}/v2/transfers/bank/${env.nomba.subAccountId}`, {
     method: "POST",
     headers: { ...baseHeaders(accessToken), "X-Idempotent-key": crypto.randomUUID() },
     body: JSON.stringify({
