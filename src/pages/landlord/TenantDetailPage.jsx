@@ -6,6 +6,7 @@ import ErrorMessage from "../../components/ui/ErrorMessage";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Avatar from "../../components/ui/Avatar";
 import PageBanner from "../../components/ui/PageBanner";
+import Icon from "../../components/ui/Icon";
 import { formatNaira, formatDate, paymentTypeBadge, paymentTypeLabel } from "../../utils/format";
 
 const BANNER_IMAGE = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&q=80&auto=format&fit=crop";
@@ -63,8 +64,8 @@ export default function TenantDetailPage() {
 
       <div className="p-6 md:p-8 grid md:grid-cols-3 gap-6">
         <div className="md:col-span-1 space-y-4">
-          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 space-y-3">
-            <h2 className="font-semibold text-[#0F172A] text-sm">Account Details</h2>
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5 space-y-3">
+            <h2 className="font-semibold text-[#0B1F17] text-sm">Account Details</h2>
             {[
               { label: "Virtual Account Number", value: tenant.virtualAccountNumber, mono: true },
               { label: "Bank", value: tenant.bankName },
@@ -76,13 +77,13 @@ export default function TenantDetailPage() {
             ].map(({ label, value, mono }) => (
               <div key={label} className="flex justify-between gap-3 text-xs">
                 <span className="text-[#64748B] shrink-0">{label}</span>
-                <span className={`text-[#0F172A] text-right ${mono ? "font-mono" : ""}`}>{value}</span>
+                <span className={`text-[#0B1F17] text-right ${mono ? "font-mono" : ""}`}>{value}</span>
               </div>
             ))}
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5 space-y-3">
-            <h2 className="font-semibold text-[#0F172A] text-sm">Current Cycle</h2>
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5 space-y-3">
+            <h2 className="font-semibold text-[#0B1F17] text-sm">Current Cycle</h2>
             {[
               { label: "Rent Due", value: formatNaira(currentCycle.due) },
               { label: "Amount Paid", value: formatNaira(currentCycle.paid) },
@@ -94,7 +95,7 @@ export default function TenantDetailPage() {
             ].map(({ label, value, color }) => (
               <div key={label} className="flex justify-between text-xs">
                 <span className="text-[#64748B]">{label}</span>
-                <span className={`font-medium ${color || "text-[#0F172A]"}`}>{value}</span>
+                <span className={`font-medium ${color || "text-[#0B1F17]"}`}>{value}</span>
               </div>
             ))}
             {currentCycle.credit > 0 && (
@@ -109,13 +110,14 @@ export default function TenantDetailPage() {
             )}
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5">
             <img src={STATEMENT_IMAGE} alt="" className="w-full h-24 object-cover rounded-lg mb-3" />
             <button
               onClick={downloadStatement}
               disabled={!history || history.length === 0}
-              className="w-full border border-[#E2E8F0] text-[#0F172A] py-2 rounded-lg text-sm hover:bg-[#FAFAF9] transition-colors duration-200 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-1.5 border border-[#E5E7EB] text-[#0B1F17] py-2 rounded-lg text-sm hover:bg-[#F7FAF8] transition-colors duration-200 disabled:opacity-50"
             >
+              <Icon name="document" className="w-4 h-4" />
               Download Statement
             </button>
           </div>
@@ -131,19 +133,19 @@ export default function TenantDetailPage() {
         </div>
 
         <div className="md:col-span-2">
-          <h2 className="font-semibold text-[#0F172A] mb-4">Payment History</h2>
+          <h2 className="font-semibold text-[#0B1F17] mb-4">Payment History</h2>
           {hLoading && <Spinner />}
           {hError && <ErrorMessage message={hError} onRetry={hRetry} />}
           {history && history.length === 0 && (
-            <p className="text-sm text-[#64748B] text-center py-16 border border-dashed border-[#E2E8F0] rounded-xl">
+            <p className="text-sm text-[#64748B] text-center py-16 border border-dashed border-[#E5E7EB] rounded-xl">
               No payment history yet.
             </p>
           )}
           {history && history.length > 0 && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden overflow-x-auto">
+            <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFAF9]">
+                  <tr className="border-b border-[#E5E7EB] bg-[#F7FAF8]">
                     {["Reference", "Amount", "Type", "Date"].map((h) => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-medium text-[#64748B] whitespace-nowrap">
                         {h}
@@ -155,7 +157,7 @@ export default function TenantDetailPage() {
                   {history.map((p) => (
                     <tr key={p.id} className="border-b border-[#F1F5F9] last:border-0">
                       <td className="px-4 py-3 font-mono text-xs text-[#64748B] whitespace-nowrap">{p.reference}</td>
-                      <td className="px-4 py-3 font-medium text-[#0F172A] whitespace-nowrap">{formatNaira(p.amount)}</td>
+                      <td className="px-4 py-3 font-medium text-[#0B1F17] whitespace-nowrap">{formatNaira(p.amount)}</td>
                       <td className="px-4 py-3">
                         <StatusBadge status={paymentTypeBadge(p.type)} />
                       </td>

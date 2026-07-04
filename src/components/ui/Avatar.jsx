@@ -2,7 +2,7 @@
 // via ui-avatars.com. We never use stock photos of people inside the app;
 // only the landing page uses lifestyle photography, and even that is never
 // a portrait.
-export default function Avatar({ name, className = "w-9 h-9", bg = "C9A84C", color = "fff" }) {
+export default function Avatar({ name, className = "w-9 h-9", bg = "15803D", color = "fff" }) {
   const initials = name
     .split(" ")
     .slice(0, 2)

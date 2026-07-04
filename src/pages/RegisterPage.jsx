@@ -52,16 +52,16 @@ export default function RegisterPage() {
       {/* Left — Form */}
       <div className="flex-1 flex flex-col justify-center px-8 md:px-16 bg-white">
         <div className="max-w-sm w-full mx-auto">
-          <Link to="/" className="text-[#0F172A] font-bold text-lg tracking-tight">RentStack</Link>
+          <Link to="/" className="text-[#0B1F17] font-bold text-lg tracking-tight">RentStack</Link>
 
           <div className="mt-6 flex gap-2">
             {STEPS.map((s, i) => (
-              <div key={s} className={`h-1 flex-1 rounded-full transition-colors duration-200 ${i <= step ? "bg-[#C9A84C]" : "bg-[#E2E8F0]"}`} />
+              <div key={s} className={`h-1 flex-1 rounded-full transition-colors duration-200 ${i <= step ? "bg-[#15803D]" : "bg-[#E5E7EB]"}`} />
             ))}
           </div>
           <p className="mt-3 text-xs text-[#64748B]">Step {step + 1} of {STEPS.length} — {STEPS[step]}</p>
 
-          <h1 className="mt-4 text-2xl font-bold text-[#0F172A]">
+          <h1 className="mt-4 text-2xl font-bold text-[#0B1F17]">
             {step === 2 ? "You're all set!" : "Create your account"}
           </h1>
 
@@ -74,55 +74,55 @@ export default function RegisterPage() {
                 {step === 0 && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-[#0F172A] mb-1">Full Name</label>
+                      <label className="block text-sm font-medium text-[#0B1F17] mb-1">Full Name</label>
                       <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                         placeholder="Abdulwahab Yusuf"
-                        className="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40" />
+                        className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[#0F172A] mb-1">Property Name</label>
+                      <label className="block text-sm font-medium text-[#0B1F17] mb-1">Property Name</label>
                       <input required value={form.propertyName} onChange={(e) => setForm({ ...form, propertyName: e.target.value })}
                         placeholder="Sunshine Court"
-                        className="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40" />
+                        className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[#0F172A] mb-1">Property Address</label>
+                      <label className="block text-sm font-medium text-[#0B1F17] mb-1">Property Address</label>
                       <input required value={form.propertyAddress} onChange={(e) => setForm({ ...form, propertyAddress: e.target.value })}
                         placeholder="14 Admiralty Way, Lekki Phase 1, Lagos"
-                        className="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40" />
+                        className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[#0F172A] mb-1">Phone</label>
+                      <label className="block text-sm font-medium text-[#0B1F17] mb-1">Phone</label>
                       <input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
                         placeholder="08031234567"
-                        className="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40" />
+                        className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40" />
                     </div>
                   </>
                 )}
                 {step === 1 && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-[#0F172A] mb-1">Email</label>
+                      <label className="block text-sm font-medium text-[#0B1F17] mb-1">Email</label>
                       <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
                         placeholder="you@example.com"
-                        className="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40" />
+                        className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[#0F172A] mb-1">Password</label>
+                      <label className="block text-sm font-medium text-[#0B1F17] mb-1">Password</label>
                       <input type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
                         placeholder="••••••••"
-                        className="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40" />
+                        className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40" />
                     </div>
                   </>
                 )}
                 <button type="submit" disabled={loading}
-                  className="w-full bg-[#0F172A] text-white py-2.5 rounded-lg text-sm font-medium hover:bg-[#1E293B] transition-colors duration-200 disabled:opacity-60">
+                  className="w-full bg-[#15803D] text-white py-2.5 rounded-lg text-sm font-medium hover:bg-[#116932] transition-colors duration-200 disabled:opacity-60">
                   {loading ? "Creating account…" : step === 1 ? "Create Account" : "Continue"}
                 </button>
               </form>
               <p className="mt-6 text-sm text-[#64748B]">
                 Already have an account?{" "}
-                <Link to="/login" className="text-[#C9A84C] font-medium hover:underline">Sign in</Link>
+                <Link to="/login" className="text-[#15803D] font-medium hover:underline">Sign in</Link>
               </p>
             </>
           )}

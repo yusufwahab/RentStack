@@ -4,9 +4,9 @@ const STATUS_STYLES = {
   UNPAID: "bg-red-50 text-red-600 border-red-200",
   OVERPAID: "bg-blue-50 text-blue-700 border-blue-200",
   DISPUTED: "bg-orange-50 text-orange-700 border-orange-200",
-  CLOSED: "bg-[#F1F5F9] text-[#64748B] border-[#E2E8F0]",
+  CLOSED: "bg-[#F1F5F9] text-[#64748B] border-[#E5E7EB]",
   UNRESOLVED: "bg-orange-50 text-orange-700 border-orange-200",
-  RETURNED: "bg-[#F1F5F9] text-[#64748B] border-[#E2E8F0]",
+  RETURNED: "bg-[#F1F5F9] text-[#64748B] border-[#E5E7EB]",
   RESOLVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 

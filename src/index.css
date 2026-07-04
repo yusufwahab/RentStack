@@ -20,3 +20,15 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+  Brand palette reference (Tailwind arbitrary values, e.g. bg-[#15803D]):
+  --brand        #15803D   primary green — CTAs, links, active states
+  --brand-dark   #0F172A -> #0B1F17  dark ink — sidebar, footer, dark sections
+  --brand-hover  #116932   button hover
+  --brand-tint   #ECFDF3   soft icon-circle / badge background
+  --brand-tint-2 #DCFCE7   slightly stronger tint
+  --muted        #64748B   secondary text
+  --border       #E5E7EB   card + divider borders
+  --bg-soft      #F7FAF8   soft section background
+*/
+

@@ -30,7 +30,7 @@ export default function Sidebar() {
         />
       )}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-[#0F172A] flex flex-col z-30 transform transition-transform duration-200
+        className={`fixed top-0 left-0 h-full w-64 bg-[#0B1F17] flex flex-col z-30 transform transition-transform duration-200
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static md:flex`}
       >
         <div className="px-6 py-5 border-b border-white/10">
@@ -46,7 +46,7 @@ export default function Sidebar() {
               className={({ isActive }) =>
                 `flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-lg text-sm border-l-2 transition-colors duration-200 ${
                   isActive
-                    ? "bg-white/10 text-white font-medium border-[#C9A84C]"
+                    ? "bg-white/10 text-white font-medium border-[#15803D]"
                     : "text-[#94A3B8] border-transparent hover:text-white hover:bg-white/5"
                 }`
               }
@@ -62,7 +62,7 @@ export default function Sidebar() {
         <div className="px-4 py-4 border-t border-white/10">
           {currentUser && (
             <div className="flex items-center gap-3 mb-3">
-              <Avatar name={currentUser.name} bg="C9A84C" color="ffffff" className="w-9 h-9" />
+              <Avatar name={currentUser.name} bg="15803D" color="ffffff" className="w-9 h-9" />
               <div className="min-w-0">
                 <p className="text-white text-sm font-medium truncate">{currentUser.name}</p>
                 <p className="text-[#64748B] text-xs truncate">{currentUser.email}</p>
