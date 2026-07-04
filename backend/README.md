@@ -1,232 +1,538 @@
-# RentStack backend
+# RentStack Backend
 
-Node.js/Express API backed by Supabase (Postgres + Auth), integrating with
-Nomba for virtual accounts and bank transfers, and Termii for SMS receipts.
+Node.js/Express API for RentStack — a virtual-account-powered rent
+collection platform for Nigerian landlords. Backed by **Supabase**
+(Postgres + Auth) and integrated with **Nomba** (virtual accounts, bank
+transfers, webhooks) and **Termii** (SMS receipts).
 
-**This is not yet wired to the frontend.** The frontend still runs entirely
-on its mock service layer. This backend is written so that connecting it
-later is a matter of swapping mock functions for `fetch` calls — no route
-or data-shape surprises.
+> **Status:** This backend is fully built and verified against a real
+> Supabase project. It is **not yet wired to the frontend** — the
+> frontend still runs on its own mock service layer. See
+> [Connecting the frontend](#connecting-the-frontend) for what that
+> takes when you're ready.
 
-## 1. Set up Supabase
+---
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run `supabase/schema.sql` (this repo) once.
-3. Settings → API → copy:
+## Table of contents
+
+1. [Architecture](#architecture)
+2. [Tech stack](#tech-stack)
+3. [Project structure](#project-structure)
+4. [Environment variables](#environment-variables)
+5. [Setup](#setup)
+   - [Supabase](#1-supabase)
+   - [Nomba](#2-nomba)
+   - [Termii](#3-termii-sms)
+   - [Install & run locally](#4-install--run-locally)
+6. [Deployment](#deployment)
+7. [Authentication](#authentication)
+8. [Data model](#data-model)
+9. [API reference](#api-reference)
+10. [Payment reconciliation logic](#payment-reconciliation-logic)
+11. [Webhook handling](#webhook-handling)
+12. [Error handling](#error-handling)
+13. [Known simplifications](#known-simplifications)
+14. [Things that need your verification](#things-that-need-your-verification)
+15. [Troubleshooting](#troubleshooting)
+16. [Connecting the frontend](#connecting-the-frontend)
+
+---
+
+## Architecture
+
+```
+┌─────────────┐      Bearer JWT       ┌──────────────────┐
+│  Frontend    │ ───────────────────▶ │  Express API      │
+│  (not wired  │ ◀─────────────────── │  (this backend)    │
+│  yet)        │        JSON           └──────────────────┘
+└─────────────┘                          │        │
+                                          │        │ service_role
+                          Nomba REST API │        ▼
+                     (virtual accounts,  │   ┌───────────┐
+                      transfers, auth)   │   │ Supabase  │
+                                          │   │ Postgres  │
+                                          │   │ + Auth    │
+                                          ▼   └───────────┘
+                                   ┌──────────────┐
+                                   │    Nomba     │──▶ webhook ──▶ POST /api/webhooks/nomba
+                                   └──────────────┘
+                                          │
+                                          ▼
+                                   ┌──────────────┐
+                                   │   Termii     │  (SMS on payment receipt)
+                                   └──────────────┘
+```
+
+- The Express API is the **only** thing that talks to Supabase — it
+  always uses the `service_role` key, which bypasses Row Level
+  Security. RLS policies in `schema.sql` exist as a defense-in-depth
+  backstop, not the primary access control.
+- Nomba calls **us** (via webhook) whenever money moves on one of our
+  virtual accounts. We call **Nomba** to provision virtual accounts and
+  to send money back out (returning misdirected payments).
+- Termii is called server-side, fire-and-forget, after a payment is
+  reconciled — a failed SMS never blocks or fails the payment write.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Runtime | Node.js ≥18 (native `fetch`, ES modules) |
+| Web framework | Express 4 |
+| Database | Postgres via Supabase |
+| Auth | Supabase Auth (email/password) |
+| Payments | Nomba (virtual accounts, bank transfers, webhooks) |
+| SMS | Termii |
+| Hosting (recommended) | Render (free tier, see [Deployment](#deployment)) |
+
+No ORM — plain `@supabase/supabase-js` query builder calls throughout.
+No TypeScript — plain JS with descriptive JSDoc-style comments where the
+"why" isn't obvious from the code.
+
+## Project structure
+
+```
+backend/
+  .env.example          template — copy to .env and fill in
+  render.yaml            Render Blueprint (deploy config)
+  package.json
+  supabase/
+    schema.sql            run once against your Supabase project
+  src/
+    config/
+      env.js               loads + validates env vars into one `env` object
+      supabaseAdmin.js      the two Supabase clients (service_role, anon)
+    middleware/
+      requireAuth.js        verifies Bearer token, attaches req.landlordId
+      errorHandler.js        404 + central error handler
+    utils/
+      asyncHandler.js        wraps async route handlers
+      ApiError.js             typed HTTP error class
+      cycles.js               billing-cycle date math, shared by dashboard/reports
+      csv.js                  CSV generation for exports
+    services/
+      nombaService.js         all Nomba API calls + webhook signature verification
+      smsService.js           Termii SMS sending
+      reconciliationService.js  turns an incoming transfer into a payment + tenant status update
+      reliabilityService.js   Rent Reliability Score + shareable-link tokens
+    controllers/             one file per resource, thin — validation + calling services/DB
+    routes/                  one file per resource, mounted under /api
+    app.js                   Express app assembly (middleware, routes, error handling)
+    server.js                entrypoint — `node src/server.js`
+```
+
+## Environment variables
+
+Full reference — see `.env.example` for the same list with inline
+comments. None of these are committed; `.env` is gitignored (verified —
+see [Troubleshooting](#troubleshooting) if you're ever unsure).
+
+| Variable | Required | Description |
+|---|---|---|
+| `PORT` | no (default 4000) | Port the API listens on |
+| `NODE_ENV` | no | `development` or `production` |
+| `CORS_ORIGIN` | yes | Comma-separated list of origins allowed to call this API |
+| `SUPABASE_URL` | yes | `https://<project-ref>.supabase.co` |
+| `SUPABASE_ANON_KEY` | yes | Public anon key — used only to verify landlord JWTs |
+| `SUPABASE_SERVICE_ROLE_KEY` | yes | **Secret.** Full DB access, bypasses RLS. Backend-only, never send to a browser |
+| `NOMBA_BASE_URL` | yes | `https://sandbox.nomba.com` or `https://api.nomba.com` |
+| `NOMBA_PARENT_ACCOUNT_ID` | yes | "Main (parent) Account ID" from Nomba's credentials email — goes in the `accountId` header on every call |
+| `NOMBA_SUB_ACCOUNT_ID` | yes | "Your sub-account ID" — used in the URL path for virtual account creation + transfers only |
+| `NOMBA_CLIENT_ID` | yes | TEST or LIVE, matching `NOMBA_BASE_URL` |
+| `NOMBA_CLIENT_SECRET` | yes | Nomba calls this "Private key" in their dashboard |
+| `NOMBA_WEBHOOK_SECRET` | yes | Signing key Nomba gives you — verifies the `nomba-signature` header |
+| `TERMII_API_KEY` | no | SMS sending fails gracefully (logged, not thrown) if unset |
+| `TERMII_SENDER_ID` | no (default `RentStack`) | Registered sender ID |
+| `INTERNAL_WEBHOOK_ALLOW_UNSIGNED` | no (default `false`) | Dev-only escape hatch to test `/api/webhooks/nomba` locally without a real signature. **Must be `false` in any deployed environment.** |
+
+## Setup
+
+### 1. Supabase
+
+1. Create a project at [supabase.com](https://supabase.com). Pick a
+   region close to your users (for RentStack, **West Europe (London)**
+   has the best connectivity to Nigeria among standard cloud regions).
+2. **SQL Editor → New query** → paste the entire contents of
+   `supabase/schema.sql` → **Run**. You should see "Success. No rows
+   returned." Verify in **Table Editor** that `landlords`, `tenants`,
+   `tenant_kyc_events`, `payments`, `sms_logs`, and `webhook_events` all
+   exist.
+3. **Settings → API Keys** → copy:
    - **Project URL** → `SUPABASE_URL`
-   - **anon public key** → `SUPABASE_ANON_KEY`
-   - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY` (never expose this to a browser)
+   - **anon / public** key → `SUPABASE_ANON_KEY`
+   - **service_role** key (click "Reveal") → `SUPABASE_SERVICE_ROLE_KEY`
 
-Supabase Auth is used as-is for landlord accounts (email/password). The
-`landlords` table is a 1:1 profile extension of `auth.users`.
+Supabase Auth is used as-is for landlord accounts. The `landlords`
+table is a 1:1 profile extension of `auth.users` (same `id`). No email
+template setup is required — see [Known simplifications](#known-simplifications).
 
-## 2. Set up Nomba
+> **If you hit `permission denied for table X`:** tables created via
+> the SQL Editor don't always inherit the same grants Supabase's Table
+> Editor UI applies automatically. `schema.sql` includes an explicit
+> `grant ... to service_role` block at the bottom to prevent this —
+> if you ran an older copy of the file, re-run just that block (see
+> [Troubleshooting](#troubleshooting)).
 
-RentStack's Nomba credentials are a **sub-account under a parent business
-account** — the credentials email gives you both IDs, plus separate
-TEST and LIVE client id/private key pairs. Two rules that matter
-everywhere in this codebase (confirmed from Nomba's docs, not assumed):
+### 2. Nomba
 
-- The `accountId` header is **always the parent account id** — on auth,
-  virtual account creation, and transfers alike.
-- The **sub-account id** goes in the URL path, only on the two endpoints
-  that move/collect money (create virtual account, bank transfer).
+RentStack's Nomba credentials are a **sub-account under a parent
+business account** — the credentials email gives you both IDs, plus
+separate TEST and LIVE client id/private key pairs. Two rules matter
+everywhere in this codebase (confirmed from Nomba's own docs):
 
-1. From the credentials email: `NOMBA_PARENT_ACCOUNT_ID` = "Main (parent)
-   Account ID", `NOMBA_SUB_ACCOUNT_ID` = "Your sub-account ID".
+- The `accountId` **header** is always the **parent** account id — on
+  auth, virtual account creation, and transfers alike.
+- The **sub-account id** goes in the **URL path**, only on the two
+  endpoints that move/collect money (create virtual account, transfer).
+
+Steps:
+
+1. From the credentials email: `NOMBA_PARENT_ACCOUNT_ID` = "Main
+   (parent) Account ID", `NOMBA_SUB_ACCOUNT_ID` = "Your sub-account ID".
 2. While `NOMBA_BASE_URL=https://sandbox.nomba.com`, use the **TEST**
    Client ID/Private key. Switch both the base URL and the credentials
    together when you go live — never mix TEST credentials with the live
    host or vice versa.
 3. "Private key" in Nomba's dashboard = `NOMBA_CLIENT_SECRET` here (the
    API itself calls it `client_secret`).
-4. In the Nomba dashboard's Webhook Setup (or their onboarding form),
-   register `https://<your-deployed-backend>/api/webhooks/nomba` and
-   put the signing key they give you into `NOMBA_WEBHOOK_SECRET`.
-5. Sub-account transfers must be enabled by Nomba before
-   `POST /api/payments/:id/return` will work — if it 403s, that's likely why;
-   ask them to enable it for your sub-account.
+4. Register your webhook URL with Nomba (their onboarding form or
+   dashboard → Webhook Setup): `https://<your-deployed-backend>/api/webhooks/nomba`.
+   Put the signing key they give you into `NOMBA_WEBHOOK_SECRET`.
+5. Sub-account transfers must be separately enabled by Nomba before
+   `POST /api/payments/:id/return` will work — if it 403s, that's
+   likely why; ask them to enable it for your sub-account.
 
-## 3. Set up Termii (SMS)
+### 3. Termii (SMS)
 
-Get your API key from [termii.com](https://termii.com) → `TERMII_API_KEY`.
-Register a sender ID (or use a shared/test one while in sandbox).
+Get your API key from [termii.com](https://termii.com) →
+`TERMII_API_KEY`. Register a sender ID (or use a shared/test one while
+in sandbox) → `TERMII_SENDER_ID`.
 
-## 4. Install & run
+### 4. Install & run locally
 
 ```bash
 cd backend
-cp .env.example .env   # then fill in the values above
+cp .env.example .env   # then fill in every value from steps 1-3
 npm install
 npm run dev             # http://localhost:4000
 ```
 
-## 5. Deploy (so Nomba has a public webhook URL to call)
+`GET /health` should return `{ "status": "ok", "env": "development" }`.
 
-Nomba's servers can't reach `localhost` — you need a real URL before
-submitting a webhook URL to them. Steps for Render (free tier, no CLI
-needed):
+## Deployment
 
-1. Push this repo to GitHub (if not already).
-2. In the [Render dashboard](https://dashboard.render.com), **New → Blueprint**,
-   point it at your repo. Render will detect `backend/render.yaml`
-   automatically and create the service (root dir is already set to `backend`).
-   - If you'd rather not use a Blueprint: **New → Web Service**, connect the
-     repo, set **Root Directory** to `backend`, **Build Command** to
-     `npm install`, **Start Command** to `npm start`.
+Nomba's (and Termii's) servers can't reach `localhost` — you need a
+public URL. Steps for **Render** (free tier, no CLI needed):
+
+1. Push this repo to GitHub.
+2. [Render dashboard](https://dashboard.render.com) → **New → Blueprint**
+   → point it at your repo. Render detects `backend/render.yaml`
+   automatically (root dir, build/start commands, health check are all
+   pre-configured).
+   - Alternative without a Blueprint: **New → Web Service**, root
+     directory `backend`, build command `npm install`, start command
+     `npm start`.
 3. In the service's **Environment** tab, fill in every variable marked
-   `sync: false` in `render.yaml` — these are the same values from your
-   local `.env` (Supabase keys, Nomba credentials, Termii key). Render
-   never shows these back to you in plaintext after saving, so keep your
-   local `.env` as your own record.
-4. Deploy. Once it's live, your webhook URL is:
-   `https://<your-service-name>.onrender.com/api/webhooks/nomba`
-5. Submit that URL (plus your Nomba sub-account ID) back to Nomba, and put
-   the same `NOMBA_WEBHOOK_SECRET` they gave you into both your local
-   `.env` and the Render environment variables.
+   `sync: false` in `render.yaml` — same values as your local `.env`.
+   Render won't show secrets back to you in plaintext after saving, so
+   keep your local `.env` as your own record.
+4. Deploy. Your webhook URL is now
+   `https://<your-service-name>.onrender.com/api/webhooks/nomba`.
+5. Submit that URL + your sub-account ID to Nomba.
 
-Free-tier Render services spin down after inactivity and take ~30-60s to
-wake on the next request — fine for hackathon judging, worth upgrading
-before any real launch.
+Free-tier Render services spin down after inactivity (~30-60s cold
+start on the next request) — fine for demos/judging, worth upgrading
+before a real launch.
 
-`GET /health` should return `{ "status": "ok" }` once it's running.
+## Authentication
 
----
+Landlord auth is Supabase Auth (email/password) end to end:
 
-## What's real vs. what needs your verification
+1. `POST /api/auth/register` or `POST /api/auth/login` returns a
+   `session.accessToken` (a Supabase JWT, ~1hr lifetime) and
+   `refreshToken`.
+2. Every other landlord-facing route requires:
+   ```
+   Authorization: Bearer <accessToken>
+   ```
+3. `requireAuth` middleware verifies the token against Supabase Auth
+   (`supabaseAuth.auth.getUser(token)`), then loads the matching
+   `landlords` row and attaches it as `req.landlord` /
+   `req.landlordId` for every downstream handler.
 
-I built this against Nomba's and Termii's actual published docs (fetched
-while writing this, not from memory), but two things could not be
-confirmed from public docs alone — **test these in sandbox before relying
-on them**:
+There is no separate "logout" invalidation server-side — Supabase JWTs
+are stateless. `POST /api/auth/logout` exists so the frontend has a
+consistent call to make; discarding the token client-side is what
+actually "logs out."
 
-### 1. Exact webhook payload field names (`nombaService.js` → `extractIncomingTransfer`)
+`POST /api/webhooks/nomba` and `GET /public/*` are the only routes with
+**no** bearer-token auth — see their own sections below for how they're
+secured instead.
 
-Confirmed from Nomba's docs:
-- The webhook envelope is `{ event_type, requestId, data }`.
-- `accountRef` (the same string you pass into `createVirtualAccount`) is
-  the intended key for matching a credit to a virtual account.
-- The **signature** is computed over `event_type:requestId:userId:walletId:transactionId:type:time:responseCode:timestamp` — those six `data` field names (`userId`, `walletId`, `transactionId`, `type`, `time`, `responseCode`) are confirmed, since Nomba documents them specifically for signing.
+## Data model
 
-**Not confirmed:** the field names for amount, sender bank name, sender
-account name/number on a virtual-account credit specifically. Nomba's
-docs describe these fields existing but don't publish a full example
-payload for this event.
+| Table | Key columns | Notes |
+|---|---|---|
+| **landlords** | `id` (= `auth.users.id`), `name`, `email`, `phone`, `property_name`, `property_address`, `rent_per_unit` | 1:1 with Supabase Auth |
+| **tenants** | `id`, `landlord_id`, `name`, `unit`, `rent_amount`, `move_in_date`, `move_out_date`, `status`, `kyc_tier`, `nomba_account_ref`, `virtual_account_number`, `bank_name` | `status` is cached/derived, kept in sync by `reconciliationService.refreshTenantStatus` |
+| **tenant_kyc_events** | `tenant_id`, `from_tier`, `to_tier`, `reason`, `acknowledged` | Powers the KYC-change landlord alert |
+| **payments** | `id`, `landlord_id` (nullable), `tenant_id` (nullable), `amount`, `type`, `reference` (unique), `sender_bank`, `sender_account_name`, `sender_account_number`, `nomba_account_ref`, `resolved`, `raw_payload` | `type` ∈ `full, partial, overpayment, disputed, misdirected, returned`. See [Payment reconciliation logic](#payment-reconciliation-logic) for why `landlord_id`/`tenant_id` can be null |
+| **sms_logs** | `tenant_id`, `payment_id`, `to_phone`, `message`, `status`, `provider_message_id` | One row per receipt SMS actually attempted |
+| **webhook_events** | `event_type`, `request_id`, `payload` (jsonb), `signature_valid`, `processed`, `processing_error` | Raw audit log of **every** webhook Nomba has ever sent, valid or not |
 
-**What to do:** trigger one real test transfer to a sandbox virtual
-account, temporarily log `JSON.stringify(req.body)` in
-`webhookController.js`, and adjust the field list in
-`extractIncomingTransfer()` to match exactly what you see. I wrote it to
-try several plausible field names already, but don't ship without
-checking this.
+Row Level Security is enabled on all six tables. Policies scope `select`
+to `auth.uid() = landlord_id` (directly, or via a join through
+`tenants` for the two child tables) — there are **no write policies**,
+so all writes are only possible through this API's `service_role`
+client. Full grant/RLS statements are in `schema.sql`.
 
-### 2. Termii's base URL
+## API reference
 
-`smsService.js` uses `https://api.ng.termii.com` — this is the widely
-documented Termii API host, but Termii's own docs page renders it as a
-template placeholder (`BASE_URL`) rather than literal text in what I could
-fetch. Double check it against your Termii dashboard/onboarding email.
+All request/response bodies are JSON. All routes below except
+`register`, `login`, `/api/webhooks/nomba`, and `/public/*` require the
+`Authorization: Bearer <accessToken>` header described above.
 
----
+### Auth
 
-## Known simplifications (deliberate, documented in code)
+<details>
+<summary><code>POST /api/auth/register</code></summary>
+
+```jsonc
+// Request
+{ "name": "Abdulwahab Yusuf", "email": "a@b.com", "phone": "08031234567",
+  "password": "at-least-8-chars", "propertyName": "Sunshine Court",
+  "propertyAddress": "14 Admiralty Way, Lekki Phase 1, Lagos" }
+
+// Response (201)
+{ "user": { "id": "...", "name": "...", "email": "...", "property_name": "...", ... },
+  "session": { "accessToken": "...", "refreshToken": "...", "expiresAt": 1234567890 } }
+```
+</details>
+
+<details>
+<summary><code>POST /api/auth/login</code></summary>
+
+```jsonc
+// Request
+{ "email": "a@b.com", "password": "..." }
+// Response (200) — same shape as register
+```
+</details>
+
+<details>
+<summary><code>GET /api/auth/me</code></summary>
+
+Returns `{ "user": <landlord row> }` for the authenticated caller.
+</details>
+
+<details>
+<summary><code>POST /api/auth/logout</code></summary>
+
+Returns `{ "success": true }`. See [Authentication](#authentication) for why this is a no-op server-side.
+</details>
+
+### Tenants
+
+| Route | Description |
+|---|---|
+| `GET /api/tenants` | List all of this landlord's tenants |
+| `POST /api/tenants` | Create a tenant — **also provisions a real Nomba virtual account**. Body: `{ name, unit, email, phone, moveInDate, rentAmount }`. If the Nomba call fails, no tenant row is created |
+| `GET /api/tenants/:id` | Single tenant |
+| `PUT /api/tenants/:id` | Update `{ name, unit, email, phone, rentAmount }` |
+| `POST /api/tenants/:id/offboard` | Sets `status = CLOSED`, `move_out_date = today`. Does **not** yet call Nomba's expire-virtual-account endpoint — see [Known simplifications](#known-simplifications) |
+| `GET /api/tenants/:id/transactions` | Full payment history for this tenant, newest first |
+| `GET /api/tenants/:id/kyc` | `{ tier, limit, tierChange }` — `tierChange` is the most recent unacknowledged event, or `null` |
+| `GET /api/tenants/:id/reliability-score` | `{ score, tier, cyclesTracked, onTimeCount, partialCount, missedCount, breakdown, generatedAt }` |
+| `GET /api/tenants/:id/reliability-score/share` | `{ url }` — mints a 30-day signed link, resolved by `GET /public/score/:token` |
+| `GET /api/tenants/:id/statement/share` | `{ url }` — same mechanism, resolved by `GET /public/statement/:token` |
+| `GET /api/tenants/:id/sms-log` | Every receipt SMS sent to this tenant |
+
+### Payments
+
+| Route | Description |
+|---|---|
+| `GET /api/payments` | This landlord's full payment ledger (never includes unresolved misdirected payments) |
+| `GET /api/payments/misdirected` | Platform-wide unresolved payments with no tenant match — see the ownership note in [Known simplifications](#known-simplifications) |
+| `POST /api/payments/:id/assign` | Body `{ tenantId }` — attaches the payment to one of *your* tenants, sets `landlord_id`, recomputes tenant status |
+| `POST /api/payments/:id/return` | Sends the money back to the original sender via Nomba's transfer API. Requires `sender_account_number` + a resolvable `sender_bank` on the payment row |
+
+### Dashboard & Reports
+
+| Route | Description |
+|---|---|
+| `GET /api/dashboard?cycle=YYYY-MM` | Full dashboard payload: KPI totals, status counts, per-tenant rows (with `daysSinceLastPayment`/`overdue`), last 10 payments, tenants due in the next 7 days, property summary. `cycle` defaults to the current month |
+| `GET /api/reports?from=&to=` | `{ monthly, byTenant, totalCollected, payments }` — `monthly` covers the last 4 cycles regardless of `from`/`to` |
+| `GET /api/reports/export/csv` | Streams a `text/csv` file of every payment |
+
+### KYC
+
+| Route | Description |
+|---|---|
+| `GET /api/kyc/alerts` | Unacknowledged tier-change events for this landlord's tenants |
+| `POST /api/kyc/alerts/:id/acknowledge` | Marks one alert as acknowledged |
+
+### Webhooks & public links
+
+| Route | Auth | Description |
+|---|---|---|
+| `POST /api/webhooks/nomba` | HMAC signature (see [Webhook handling](#webhook-handling)) | Nomba calls this directly — never called by the frontend |
+| `GET /public/score/:token` | Signed token in URL | Unauthenticated — resolves a reliability-score share link |
+| `GET /public/statement/:token` | Signed token in URL | Unauthenticated — resolves a statement share link |
+
+### Health
+
+`GET /health` → `{ "status": "ok", "env": "development" }` — no auth, useful for uptime checks and Render's health check.
+
+## Payment reconciliation logic
+
+This is the core business logic, in `reconciliationService.js` and `utils/cycles.js`:
+
+1. A webhook arrives → `extractIncomingTransfer()` pulls out
+   `accountRef`, `amount`, `reference`, sender details.
+2. **Idempotency check**: if `reference` already exists in `payments`,
+   stop — Nomba retries webhooks on anything but a 2XX response, so
+   duplicates are expected and must be ignored.
+3. **Tenant lookup**: find the tenant whose `nomba_account_ref` matches
+   `accountRef`.
+   - No match → `type = 'misdirected'`, `tenant_id`/`landlord_id` both null.
+4. **Name check**: if the sender's name doesn't loosely match the
+   tenant's registered `account_name` (word-set comparison, tolerant of
+   reordering/casing) → `type = 'disputed'`, regardless of amount.
+5. **Otherwise**, classify against the current cycle's running total for
+   that tenant (`classifyAgainstCycle`): sum of this cycle's payments
+   *including this one*, compared to `rent_amount` →
+   `full` / `partial` / `overpayment`.
+6. Insert the `payments` row, then `refreshTenantStatus()` recomputes
+   and caches the tenant's `status` column from that same cycle's rows
+   (so it never drifts from the underlying payment history).
+7. If a tenant was matched and the type isn't `misdirected`/`returned`,
+   `smsService.sendPaymentReceiptSms()` fires (best-effort — logged to
+   `sms_logs` either way, success or failure).
+
+**Cycles** are always calendar months, keyed `"YYYY-MM"`. `dashboardController`
+and `reportController` both use the same `cycleBounds()`/`classifyCycle()`
+helpers so numbers are consistent everywhere they're shown.
+
+## Webhook handling
+
+Confirmed directly from Nomba's docs (not assumed):
+
+- Envelope: `{ event_type, requestId, data }`.
+- Nomba fires on 6 event types; **only `payment_success` is acted on
+  today** — the other five (`payout_success`, `payment_failed`,
+  `payment_reversal`, `payout_failed`, `payout_refund`) are logged to
+  `webhook_events` for audit but not processed. Add handling in
+  `webhookController.js` as those become relevant.
+- **Every** request — valid signature or not — is written to
+  `webhook_events` first, before any other logic runs. Nothing is ever
+  silently dropped.
+- Signature: `HMAC-SHA256(secret, signingString)`, base64-encoded,
+  compared (`timingSafeEqual`) against the `nomba-signature` header.
+  ```
+  signingString = event_type:requestId:data.userId:data.walletId:
+                  data.transactionId:data.type:data.time:
+                  data.responseCode:nomba-timestamp-header
+  ```
+- Invalid signature → `401`, no processing. Valid but unhandled event
+  type → `200` (acknowledged, not acted on). Processing error →
+  still `200` (so Nomba doesn't retry forever for what's usually a bug
+  on our side), with the error recorded in `webhook_events.processing_error`.
+
+## Error handling
+
+Every error response is `{ "error": "human-readable message" }` with an
+appropriate status code (400/401/403/404/409/500), thrown via the
+`ApiError` class and caught by the central `errorHandler` middleware.
+Route handlers never need their own try/catch for this — `asyncHandler`
+forwards any rejected promise to `errorHandler` automatically.
+
+## Known simplifications
 
 - **Misdirected payments have no fixed owner.** A payment only becomes
-  "misdirected" (`tenant_id = null`) when its `accountRef` doesn't match
-  any tenant at all — which also means we can't know which landlord it
-  belongs to (see the big comment on `payments.landlord_id` in
-  `schema.sql`). Rather than hide these, `GET /api/payments/misdirected`
-  surfaces them to every authenticated landlord; the `assign` action is
-  what actually attaches an owner. If you need real multi-landlord
-  isolation, provision each landlord as a distinct Nomba **sub-account**
-  (`create-virtual-account-for-sub-account` in Nomba's docs) so ownership
-  is unambiguous even before assignment.
-- **Share links (`reliabilityService.createShareToken`)** are a signed
-  HMAC token, not a revocable database row. They expire after 30 days but
-  can't be manually revoked early. A `share_tokens` table with a
-  `revoked_at` column is the natural upgrade if you need that.
-- **Registration auto-confirms email** (`supabaseAdmin.auth.admin.createUser`
-  with `email_confirm: true`) so you can test end-to-end without setting
-  up Supabase's email templates first. Swap to `supabase.auth.signUp()` +
-  a real confirmation flow before a public launch.
-- **Tenant offboarding doesn't yet call Nomba's "expire a virtual account"
-  endpoint** — it only flips `status` to `CLOSED` in the DB. The account
-  itself keeps accepting transfers on Nomba's side until you add that
-  call (flagged with a `NOTE:` comment in `tenantController.js`).
-- **CSV, not PDF, for statement/report export** — matches what the
-  frontend mock currently does. If you need real PDFs, add `pdfkit` or
-  similar; the export controllers are the only place that would change.
+  `misdirected` when its `accountRef` matches no tenant at all — which
+  also means we structurally can't know which landlord it belongs to
+  (tenants are only ever soft-closed, never hard-deleted, so a
+  resolvable `accountRef` always yields a landlord; only a genuinely
+  orphaned webhook has this problem). Rather than hide these forever,
+  `GET /api/payments/misdirected` surfaces them to every authenticated
+  landlord — `assign` is what actually attaches an owner. Real
+  multi-landlord isolation would mean provisioning each landlord as
+  their own Nomba sub-account.
+- **Share links are signed HMAC tokens, not revocable DB rows.** They
+  expire after 30 days but can't be manually revoked early. A
+  `share_tokens` table with a `revoked_at` column is the natural
+  upgrade if that matters to you.
+- **Registration auto-confirms email** (`email_confirm: true` via the
+  admin API) so you can test end-to-end without configuring Supabase's
+  email templates first. Swap to `supabase.auth.signUp()` + a real
+  confirmation flow before a public launch.
+- **Tenant offboarding doesn't call Nomba's "expire virtual account"
+  endpoint yet** — only the DB `status` flips to `CLOSED`. The account
+  keeps accepting transfers on Nomba's side until that call is added
+  (flagged with a `NOTE:` in `tenantController.js`).
+- **CSV, not PDF**, for statement/report export — matches the frontend
+  mock. Swapping to real PDFs (e.g. `pdfkit`) only touches the export
+  controllers.
 
-## Project structure
+## Things that need your verification
 
-```
-backend/
-  src/
-    config/       env loading, Supabase client
-    middleware/   auth check, error handling
-    utils/        asyncHandler, billing-cycle math, CSV
-    services/     nombaService, smsService, reconciliationService, reliabilityService
-    controllers/  one per resource
-    routes/       one per resource, mounted under /api
-    app.js        express app assembly
-    server.js     entrypoint
-  supabase/
-    schema.sql    run once against your Supabase project
-```
+Built against Nomba's and Termii's actual published docs, but two
+specifics couldn't be confirmed from public docs alone:
 
-## API surface
+1. **Exact webhook `data` field names** for a virtual-account credit
+   (`payment_success`) — amount, sender bank, sender account name/number.
+   Nomba's docs confirm `accountRef` is the reconciliation key and name
+   the 6 fields used for signing, but don't publish a full example
+   payload for this specific event. `extractIncomingTransfer()` in
+   `nombaService.js` tries several plausible field names — trigger one
+   real sandbox transfer, log `req.body` in `webhookController.js`, and
+   tighten the field list to match reality before relying on it.
+2. **Termii's base URL** — `smsService.js` uses `https://api.ng.termii.com`
+   (the widely-documented host), but Termii's own docs rendered it as a
+   template placeholder rather than literal text in what was fetched
+   while building this. Confirm against your Termii dashboard.
 
-All routes below (except `/api/auth/register`, `/api/auth/login`, and
-`/api/webhooks/nomba`) require `Authorization: Bearer <accessToken>` from
-`/api/auth/login`.
+## Troubleshooting
 
-```
-POST   /api/auth/register
-POST   /api/auth/login
-GET    /api/auth/me
-POST   /api/auth/logout
-
-GET    /api/tenants
-POST   /api/tenants
-GET    /api/tenants/:id
-PUT    /api/tenants/:id
-POST   /api/tenants/:id/offboard
-GET    /api/tenants/:id/transactions
-GET    /api/tenants/:id/kyc
-GET    /api/tenants/:id/reliability-score
-GET    /api/tenants/:id/reliability-score/share
-GET    /api/tenants/:id/statement/share
-GET    /api/tenants/:id/sms-log
-
-GET    /api/payments
-GET    /api/payments/misdirected
-POST   /api/payments/:id/assign      { tenantId }
-POST   /api/payments/:id/return
-
-GET    /api/dashboard?cycle=YYYY-MM
-
-GET    /api/reports?from=&to=
-GET    /api/reports/export/csv
-
-GET    /api/kyc/alerts
-POST   /api/kyc/alerts/:id/acknowledge
-
-POST   /api/webhooks/nomba           (Nomba calls this — not for the frontend)
-
-GET    /public/score/:token          (unauthenticated — resolves a share link)
-GET    /public/statement/:token      (unauthenticated — resolves a share link)
+**`permission denied for table X` when the service_role client tries to
+read/write** — tables created via the SQL Editor don't automatically
+inherit the grants Supabase's Table Editor UI applies. Fix (already in
+`schema.sql`, but here standalone if you need to re-run it):
+```sql
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;
 ```
 
-## Connecting the frontend (when you're ready)
+**`TypeError: fetch failed` / `getaddrinfo ENOTFOUND ...supabase.co`** —
+`SUPABASE_URL` is still a placeholder or mistyped. Confirm it's your
+real project URL (`https://<project-ref>.supabase.co`).
 
-Each frontend `src/services/*.js` file already has `// MOCK: Replace with
-<endpoint>` comments pointing at the routes above. The mechanical change
-per the frontend's own architecture (see its `config.js`):
+**`Error: supabaseKey is required.` on startup** — `SUPABASE_ANON_KEY`
+or `SUPABASE_SERVICE_ROLE_KEY` is empty in `.env`.
 
-1. Set `VITE_USE_MOCK=false` and `VITE_API_URL=http://localhost:4000` in the frontend's `.env`.
-2. Implement `frontend/src/api/apiClient.js` (currently a stub) to attach the
-   bearer token and call this API.
-3. In each service file, replace the mock branch with a real `apiClient` call.
+**Nomba transfer returns 403** — sub-account transfers must be enabled
+by Nomba first; see [Setup → Nomba](#2-nomba), step 5.
+
+**Webhook always 401s** — check `NOMBA_WEBHOOK_SECRET` matches exactly
+what Nomba gave you, and that you're not accidentally running with
+`INTERNAL_WEBHOOK_ALLOW_UNSIGNED=true` in an environment where you
+expect real verification (that flag makes every signature "valid").
+
+## Connecting the frontend
+
+Each frontend `src/services/*.js` file already has `// MOCK: Replace
+with <endpoint>` comments pointing at the exact routes documented
+above. Per the frontend's own architecture (see its `config.js`):
+
+1. Set `VITE_USE_MOCK=false` and `VITE_API_URL=http://localhost:4000`
+   (or your deployed URL) in the frontend's `.env`.
+2. Implement `frontend/src/api/apiClient.js` (currently a stub) to
+   attach the bearer token and call this API.
+3. In each service file, replace the mock branch with a real
+   `apiClient` call.
 
 No page or component changes needed — that's the whole point of the
-service-layer pattern already in place.
+service-layer pattern already in place on the frontend.
