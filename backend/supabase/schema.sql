@@ -194,3 +194,21 @@ create policy "landlords read own tenants sms logs" on sms_logs
 
 -- webhook_events has no read policy for authenticated users — it's
 -- backend/service-role only (may contain unverified/raw payloads).
+
+-- =============================================================
+-- Grants
+--
+-- Tables created via the SQL Editor don't automatically pick up the
+-- same role grants Supabase's Table Editor UI applies — without this,
+-- even the service_role client gets "permission denied for table X"
+-- despite bypassing RLS (RLS and table-level GRANTs are separate
+-- layers; bypassing one doesn't imply the other). This grants
+-- service_role full access now, and by default for any table added
+-- later.
+-- =============================================================
+
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;
