@@ -14,15 +14,13 @@ export async function register(data) {
 }
 
 // MOCK: Replace with POST /api/auth/login when backend is ready
-export async function login(email, password) {
+// Accepts any email/password while mocked — there is no real auth backend yet.
+export async function login(email) {
   if (USE_MOCK) {
-    if (email === mockLandlord.email && password === mockLandlord.password) {
-      const user = { ...mockLandlord };
-      delete user.password;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-      return mockDelay({ user, token: "mock-jwt-token" });
-    }
-    throw new Error("Invalid email or password.");
+    const user = { ...mockLandlord, email: email || mockLandlord.email };
+    delete user.password;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    return mockDelay({ user, token: "mock-jwt-token" });
   }
 }
 

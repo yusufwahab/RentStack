@@ -70,7 +70,7 @@ export default function LoginPage() {
             Don't have an account?{" "}
             <Link to="/register" className="text-[#15803D] font-medium hover:underline">Get started</Link>
           </p>
-          <p className="mt-2 text-xs text-[#94A3B8]">Demo: abdulwahab@rentstack.com / password123</p>
+          <p className="mt-2 text-xs text-[#94A3B8]">Demo mode: enter any email and password to sign in.</p>
         </div>
       </div>
 

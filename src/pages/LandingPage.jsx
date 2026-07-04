@@ -6,14 +6,42 @@ import Avatar from "../components/ui/Avatar";
 const IMG = {
   hero: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&q=80&auto=format&fit=crop",
   city: "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=80&auto=format&fit=crop",
-  landlord: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=900&q=80&auto=format&fit=crop",
+  landlord: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=1000&q=80&auto=format&fit=crop",
   fintech: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&q=80&auto=format&fit=crop",
   tenant: "https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=800&q=80&auto=format&fit=crop",
+  houseMinimal: "https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=800&q=80&auto=format&fit=crop",
+  houseVilla: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800&q=80&auto=format&fit=crop",
+  houseNight: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=80&auto=format&fit=crop",
+  houseCabin: "https://images.unsplash.com/photo-1449844908441-8829872d2607?w=800&q=80&auto=format&fit=crop",
 };
+
+const FEATURED_PROPERTIES = [
+  {
+    image: IMG.houseMinimal,
+    type: "Detached House",
+    benefit: "One dedicated virtual account per tenant, reconciled automatically.",
+  },
+  {
+    image: IMG.houseVilla,
+    type: "Luxury Duplex",
+    benefit: "Full payments, partial payments, and overpayments — all tracked without a phone call.",
+  },
+  {
+    image: IMG.houseNight,
+    type: "Family Home",
+    benefit: "A verified rent statement for every tenant, ready to download any time.",
+  },
+  {
+    image: IMG.houseCabin,
+    type: "Self-Contained Units",
+    benefit: "Every tenant onboarded in minutes — no new behaviour required on their end.",
+  },
+];
 
 const NAV_LINKS = [
   { to: "#how-it-works", label: "How It Works" },
   { to: "#scenarios", label: "Reconciliation" },
+  { to: "#properties", label: "Properties" },
   { to: "#testimonials", label: "Landlords" },
 ];
 
@@ -139,10 +167,10 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 pt-14 md:pt-20 grid md:grid-cols-2 gap-12 items-center">
-          <div className="text-center md:text-left">
+      {/* Hero — image bleeds to the viewport edge, same treatment as the reference */}
+      <section className="bg-white overflow-hidden">
+        <div className="grid md:grid-cols-2 items-center">
+          <div className="text-center md:text-left px-6 md:pl-[max(1.5rem,calc((100vw-72rem)/2+1.5rem))] md:pr-6 pt-14 md:pt-20 pb-10 md:pb-16">
             <h1 className="text-4xl md:text-5xl font-bold leading-[1.1] tracking-tight">
               <span className="text-[#0B1F17]">Rent collection</span>
               <br />
@@ -181,11 +209,13 @@ export default function LandingPage() {
               </p>
             </div>
           </div>
-          <div className="relative">
-            <div className="rounded-2xl overflow-hidden shadow-sm">
-              <img src={IMG.landlord} alt="Landlord reviewing rent payments at his desk" className="w-full h-72 md:h-96 object-cover" />
-            </div>
-            <div className="hidden sm:flex absolute -bottom-6 -left-6 bg-white rounded-2xl shadow-lg border border-[#E5E7EB] p-4 items-center gap-3 max-w-[240px]">
+          <div className="relative h-72 md:h-[480px]">
+            <img
+              src={IMG.landlord}
+              alt="Landlord reviewing rent payments at his desk"
+              className="absolute inset-0 w-full h-full object-cover md:rounded-l-[2rem] rounded-2xl md:rounded-r-none"
+            />
+            <div className="hidden sm:flex absolute -bottom-6 left-6 md:left-10 bg-white rounded-2xl shadow-lg border border-[#E5E7EB] p-4 items-center gap-3 max-w-[240px]">
               <Avatar name="Chiamaka Eze" className="w-10 h-10" bg="15803D" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-[#0B1F17] truncate">Chiamaka Eze · Flat 1A</p>
@@ -245,8 +275,49 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Featured Properties — showcasing the kinds of properties RentStack is built for */}
+      <section id="properties" className="bg-white py-20">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <SectionLabel>PROPERTIES ON RENTSTACK</SectionLabel>
+              <h2 className="mt-3 text-3xl font-bold text-[#0B1F17]">Built for properties like yours.</h2>
+            </div>
+            <Link
+              to="/register"
+              className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#15803D] hover:text-[#116932] transition-colors duration-200 whitespace-nowrap"
+            >
+              Add your property <Icon name="arrowRight" className="w-4 h-4" />
+            </Link>
+          </div>
+          <p className="text-[#475569] max-w-2xl leading-relaxed mb-10">
+            From a single duplex to a multi-unit compound, every property gets the same infrastructure: a dedicated account per tenant, automatic reconciliation, and a clean record for every payment.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {FEATURED_PROPERTIES.map(({ image, type, benefit }) => (
+              <Link
+                key={type}
+                to="/register"
+                className="group border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200"
+              >
+                <div className="relative">
+                  <img src={image} alt={type} className="w-full h-44 object-cover" />
+                  <span className="absolute top-3 left-3 bg-white/95 text-[#15803D] text-xs font-medium px-3 py-1 rounded-full shadow-sm">
+                    On RentStack
+                  </span>
+                </div>
+                <div className="p-5">
+                  <h3 className="font-semibold text-[#0B1F17] text-sm">{type}</h3>
+                  <p className="mt-2 text-xs text-[#64748B] leading-relaxed">{benefit}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* The Problem */}
-      <section className="bg-white py-20">
+      <section className="bg-[#F7FAF8] py-20">
         <div className="max-w-6xl mx-auto px-6">
           <SectionLabel>THE PROBLEM</SectionLabel>
           <h2 className="mt-3 text-3xl font-bold text-[#0B1F17] text-center">Rent collection in Nigeria is broken.</h2>
@@ -276,7 +347,7 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="bg-[#F7FAF8] py-20">
+      <section id="how-it-works" className="bg-white py-20">
         <div className="max-w-6xl mx-auto px-6">
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <h2 className="mt-3 text-3xl font-bold text-[#0B1F17] text-center">Three steps. Fully automated.</h2>
@@ -295,7 +366,7 @@ export default function LandingPage() {
       </section>
 
       {/* Why Choose RentStack */}
-      <section className="bg-white py-20">
+      <section className="bg-[#F7FAF8] py-20">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-[#0B1F17] text-center mb-12">Why landlords choose RentStack</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -313,7 +384,7 @@ export default function LandingPage() {
       </section>
 
       {/* For Landlords and Tenants */}
-      <section className="bg-[#F7FAF8] py-20">
+      <section className="bg-white py-20">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-10">
           <div className="text-center md:text-left">
             <img src={IMG.landlord} alt="Landlord managing properties from a dashboard" className="w-full h-56 object-cover rounded-2xl" />
@@ -333,7 +404,7 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials */}
-      <section id="testimonials" className="bg-white py-20">
+      <section id="testimonials" className="bg-[#F7FAF8] py-20">
         <div className="max-w-6xl mx-auto px-6">
           <SectionLabel>LANDLORDS ON RENTSTACK</SectionLabel>
           <h2 className="mt-3 text-3xl font-bold text-[#0B1F17] text-center mb-12">What our landlords say</h2>
