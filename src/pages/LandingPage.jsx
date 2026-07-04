@@ -167,10 +167,10 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero — image bleeds to the viewport edge, same treatment as the reference */}
-      <section className="bg-white overflow-hidden">
-        <div className="grid md:grid-cols-2 items-center">
-          <div className="text-center md:text-left px-6 md:pl-[max(1.5rem,calc((100vw-72rem)/2+1.5rem))] md:pr-6 pt-14 md:pt-20 pb-10 md:pb-16">
+      {/* Hero */}
+      <section className="bg-white">
+        <div className="max-w-6xl mx-auto px-6 pt-14 md:pt-20 grid md:grid-cols-2 gap-12 items-center">
+          <div className="text-center md:text-left">
             <h1 className="text-4xl md:text-5xl font-bold leading-[1.1] tracking-tight">
               <span className="text-[#0B1F17]">Rent collection</span>
               <br />
@@ -209,13 +209,11 @@ export default function LandingPage() {
               </p>
             </div>
           </div>
-          <div className="relative h-72 md:h-[480px]">
-            <img
-              src={IMG.landlord}
-              alt="Landlord reviewing rent payments at his desk"
-              className="absolute inset-0 w-full h-full object-cover md:rounded-l-[2rem] rounded-2xl md:rounded-r-none"
-            />
-            <div className="hidden sm:flex absolute -bottom-6 left-6 md:left-10 bg-white rounded-2xl shadow-lg border border-[#E5E7EB] p-4 items-center gap-3 max-w-[240px]">
+          <div className="relative">
+            <div className="rounded-2xl overflow-hidden shadow-sm">
+              <img src={IMG.landlord} alt="Landlord reviewing rent payments at his desk" className="w-full h-72 md:h-96 object-cover" />
+            </div>
+            <div className="hidden sm:flex absolute -bottom-6 -left-6 bg-white rounded-2xl shadow-lg border border-[#E5E7EB] p-4 items-center gap-3 max-w-[240px]">
               <Avatar name="Chiamaka Eze" className="w-10 h-10" bg="15803D" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-[#0B1F17] truncate">Chiamaka Eze · Flat 1A</p>
