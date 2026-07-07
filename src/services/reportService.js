@@ -1,6 +1,8 @@
 import { USE_MOCK } from "../config";
 import { mockDelay } from "../mock/mockDelay";
 import { mockPayments, mockTenants } from "../mock/mockData";
+import { get } from "../api/apiClient";
+import { mapPayment, cycleKeyToLabel } from "../utils/apiMappers";
 
 const MONTHS = [
   { key: "2026-04", label: "April 2026" },
@@ -53,6 +55,18 @@ export async function getReports(dateRange) {
 
     return mockDelay({ monthly, byTenant, totalCollected, payments: enrichedPayments });
   }
+
+  const params = new URLSearchParams();
+  if (dateRange?.from) params.set("from", dateRange.from);
+  if (dateRange?.to) params.set("to", dateRange.to);
+  const query = params.toString() ? `?${params.toString()}` : "";
+
+  const data = await get(`/api/reports${query}`);
+  return {
+    ...data,
+    monthly: data.monthly.map((m) => ({ ...m, month: cycleKeyToLabel(m.month) })),
+    payments: data.payments.map(mapPayment),
+  };
 }
 
 // MOCK: Replace with GET /api/reports/export/csv when backend is ready
@@ -75,4 +89,5 @@ export async function exportCSV() {
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     return mockDelay(csv);
   }
+  return get("/api/reports/export/csv", { raw: true });
 }

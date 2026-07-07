@@ -11,7 +11,7 @@ import {
   getTenantReliabilityScore,
   shareTenantReliabilityScore,
   shareTenantStatement,
-  getTenantSmsLog,
+  getTenantNotifications,
 } from "../controllers/tenantController.js";
 
 const router = Router();
@@ -27,6 +27,6 @@ router.get("/:id/kyc", getTenantKyc);
 router.get("/:id/reliability-score", getTenantReliabilityScore);
 router.get("/:id/reliability-score/share", shareTenantReliabilityScore);
 router.get("/:id/statement/share", shareTenantStatement);
-router.get("/:id/sms-log", getTenantSmsLog);
+router.get("/:id/notifications", getTenantNotifications);
 
 export default router;

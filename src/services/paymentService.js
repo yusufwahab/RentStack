@@ -1,6 +1,8 @@
 import { USE_MOCK } from "../config";
 import { mockDelay } from "../mock/mockDelay";
 import { mockPayments, mockTenants } from "../mock/mockData";
+import { get, post } from "../api/apiClient";
+import { mapPayment } from "../utils/apiMappers";
 
 let payments = [...mockPayments];
 
@@ -19,6 +21,8 @@ export async function getAllPayments() {
     const sorted = [...payments].sort((a, b) => new Date(b.date) - new Date(a.date));
     return mockDelay(sorted.map(enrich));
   }
+  const rows = await get("/api/payments");
+  return rows.map(mapPayment);
 }
 
 // MOCK: Replace with GET /api/payments/misdirected when backend is ready
@@ -29,9 +33,11 @@ export async function getMisdirectedPayments() {
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     return mockDelay(misdirected);
   }
+  const rows = await get("/api/payments/misdirected");
+  return rows.map(mapPayment);
 }
 
-// MOCK: Replace with POST /api/payments/assign when backend is ready
+// MOCK: Replace with POST /api/payments/:id/assign when backend is ready
 export async function assignMisdirectedPayment(paymentId, tenantId) {
   if (USE_MOCK) {
     payments = payments.map((p) =>
@@ -39,9 +45,10 @@ export async function assignMisdirectedPayment(paymentId, tenantId) {
     );
     return mockDelay({ success: true });
   }
+  return post(`/api/payments/${paymentId}/assign`, { tenantId });
 }
 
-// MOCK: Replace with POST /api/payments/return when backend is ready
+// MOCK: Replace with POST /api/payments/:id/return when backend is ready
 // This will trigger the Nomba Transfers API on the backend
 export async function returnMisdirectedPayment(paymentId) {
   if (USE_MOCK) {
@@ -50,4 +57,5 @@ export async function returnMisdirectedPayment(paymentId) {
     );
     return mockDelay({ success: true });
   }
+  return post(`/api/payments/${paymentId}/return`);
 }

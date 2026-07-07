@@ -33,9 +33,10 @@ export const env = {
     webhookSecret: required("NOMBA_WEBHOOK_SECRET"),
   },
 
-  termii: {
-    apiKey: process.env.TERMII_API_KEY || "",
-    senderId: process.env.TERMII_SENDER_ID || "RentStack",
+  brevo: {
+    apiKey: process.env.BREVO_API_KEY || "",
+    senderEmail: process.env.BREVO_SENDER_EMAIL || "notifications@rentstack.app",
+    senderName: process.env.BREVO_SENDER_NAME || "RentStack",
   },
 
   // Dev-only escape hatch so you can hit /api/webhooks/nomba locally with

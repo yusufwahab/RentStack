@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { requestSignupOtp, verifySignupOtp } from "../services/authService";
 
-const STEPS = ["Property Details", "Account Setup", "Done"];
+const STEPS = ["Property Details", "Account Setup", "Verify Email", "Done"];
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -15,37 +16,75 @@ export default function RegisterPage() {
     propertyName: "",
     propertyAddress: "",
     password: "",
+    code: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const stepBenefits = [
     "Your property, set up in minutes.",
-    "Every tenant gets their own account number.",
+    "One verified account keeps your rent records secure.",
+    "Almost there — check your inbox for the code.",
     "Payments reconcile themselves. You just watch.",
   ];
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (step < 1) { setStep(step + 1); return; }
     setError("");
-    setLoading(true);
+
+    if (step === 0) {
+      setStep(1);
+      return;
+    }
+
+    if (step === 1) {
+      setLoading(true);
+      try {
+        await requestSignupOtp(form.email);
+        setStep(2);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (step === 2) {
+      setLoading(true);
+      try {
+        await verifySignupOtp(form.email, form.code);
+        await register({
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          password: form.password,
+          property: { name: form.propertyName, address: form.propertyAddress },
+        });
+        setStep(3);
+        setTimeout(() => navigate("/dashboard"), 1500);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  async function handleResend() {
+    setError("");
+    setResending(true);
     try {
-      await register({
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        password: form.password,
-        property: { name: form.propertyName, address: form.propertyAddress },
-      });
-      setStep(2);
-      setTimeout(() => navigate("/dashboard"), 1500);
+      await requestSignupOtp(form.email);
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setResending(false);
     }
   }
+
+  const buttonLabel = { 0: "Continue", 1: loading ? "Sending code…" : "Send Verification Code", 2: loading ? "Verifying…" : "Verify & Create Account" }[step];
 
   return (
     <div className="min-h-screen flex">
@@ -62,10 +101,10 @@ export default function RegisterPage() {
           <p className="mt-3 text-xs text-[#64748B]">Step {step + 1} of {STEPS.length} — {STEPS[step]}</p>
 
           <h1 className="mt-4 text-2xl font-bold text-[#0B1F17]">
-            {step === 2 ? "You're all set!" : "Create your account"}
+            {step === 3 ? "You're all set!" : "Create your account"}
           </h1>
 
-          {step === 2 ? (
+          {step === 3 ? (
             <p className="mt-3 text-sm text-[#475569]">Redirecting you to your dashboard…</p>
           ) : (
             <>
@@ -115,9 +154,36 @@ export default function RegisterPage() {
                     </div>
                   </>
                 )}
+                {step === 2 && (
+                  <>
+                    <p className="text-sm text-[#475569]">
+                      We sent a 6-digit code to <span className="font-medium text-[#0B1F17]">{form.email}</span>.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-[#0B1F17] mb-1">Verification Code</label>
+                      <input
+                        required
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={form.code}
+                        onChange={(e) => setForm({ ...form, code: e.target.value.replace(/\D/g, "") })}
+                        placeholder="123456"
+                        className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-[#15803D]/40"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={resending}
+                      className="text-xs text-[#15803D] font-medium hover:underline disabled:opacity-60"
+                    >
+                      {resending ? "Resending…" : "Didn't get it? Resend code"}
+                    </button>
+                  </>
+                )}
                 <button type="submit" disabled={loading}
                   className="w-full bg-[#15803D] text-white py-2.5 rounded-lg text-sm font-medium hover:bg-[#116932] transition-colors duration-200 disabled:opacity-60">
-                  {loading ? "Creating account…" : step === 1 ? "Create Account" : "Continue"}
+                  {buttonLabel}
                 </button>
               </form>
               <p className="mt-6 text-sm text-[#64748B]">

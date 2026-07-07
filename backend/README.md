@@ -3,13 +3,17 @@
 Node.js/Express API for RentStack — a virtual-account-powered rent
 collection platform for Nigerian landlords. Backed by **Supabase**
 (Postgres + Auth) and integrated with **Nomba** (virtual accounts, bank
-transfers, webhooks) and **Termii** (SMS receipts).
+transfers, webhooks) and **Brevo** (signup OTP + payment-receipt emails).
 
-> **Status:** This backend is fully built and verified against a real
-> Supabase project. It is **not yet wired to the frontend** — the
-> frontend still runs on its own mock service layer. See
-> [Connecting the frontend](#connecting-the-frontend) for what that
-> takes when you're ready.
+> **Status:** This backend is built, deployed, and connected to the real
+> frontend (see [Connecting the frontend](#connecting-the-frontend) for
+> how that wiring works). Registration, login, dashboard, tenants,
+> payments, reports, KYC, and reliability scores are all live against
+> real Supabase data. Nomba virtual account provisioning is verified
+> working with real credentials. Not yet exercised for real: a
+> Nomba-triggered webhook (only tested with synthetic payloads so far)
+> and outbound transfers (Nomba must separately enable sub-account
+> transfers first).
 
 ---
 
@@ -22,7 +26,7 @@ transfers, webhooks) and **Termii** (SMS receipts).
 5. [Setup](#setup)
    - [Supabase](#1-supabase)
    - [Nomba](#2-nomba)
-   - [Termii](#3-termii-sms)
+   - [Brevo](#3-brevo-email)
    - [Install & run locally](#4-install--run-locally)
 6. [Deployment](#deployment)
 7. [Authentication](#authentication)
@@ -59,7 +63,7 @@ transfers, webhooks) and **Termii** (SMS receipts).
                                           │
                                           ▼
                                    ┌──────────────┐
-                                   │   Termii     │  (SMS on payment receipt)
+                                   │    Brevo     │  (signup OTP, payment-receipt email)
                                    └──────────────┘
 ```
 
@@ -70,8 +74,9 @@ transfers, webhooks) and **Termii** (SMS receipts).
 - Nomba calls **us** (via webhook) whenever money moves on one of our
   virtual accounts. We call **Nomba** to provision virtual accounts and
   to send money back out (returning misdirected payments).
-- Termii is called server-side, fire-and-forget, after a payment is
-  reconciled — a failed SMS never blocks or fails the payment write.
+- Brevo is called server-side in two places: once during signup (OTP
+  code) and once, fire-and-forget, after a payment is reconciled — a
+  failed email never blocks or fails the payment write.
 
 ## Tech stack
 
@@ -82,7 +87,7 @@ transfers, webhooks) and **Termii** (SMS receipts).
 | Database | Postgres via Supabase |
 | Auth | Supabase Auth (email/password) |
 | Payments | Nomba (virtual accounts, bank transfers, webhooks) |
-| SMS | Termii |
+| Email | Brevo (signup OTP, payment receipts) |
 | Hosting (recommended) | Render (free tier, see [Deployment](#deployment)) |
 
 No ORM — plain `@supabase/supabase-js` query builder calls throughout.
@@ -112,7 +117,8 @@ backend/
       csv.js                  CSV generation for exports
     services/
       nombaService.js         all Nomba API calls + webhook signature verification
-      smsService.js           Termii SMS sending
+      brevoService.js         Brevo transactional email sending
+      otpService.js           signup OTP generate/send/verify
       reconciliationService.js  turns an incoming transfer into a payment + tenant status update
       reliabilityService.js   Rent Reliability Score + shareable-link tokens
     controllers/             one file per resource, thin — validation + calling services/DB
@@ -141,8 +147,9 @@ see [Troubleshooting](#troubleshooting) if you're ever unsure).
 | `NOMBA_CLIENT_ID` | yes | TEST or LIVE, matching `NOMBA_BASE_URL` |
 | `NOMBA_CLIENT_SECRET` | yes | Nomba calls this "Private key" in their dashboard |
 | `NOMBA_WEBHOOK_SECRET` | yes | Signing key Nomba gives you — verifies the `nomba-signature` header |
-| `TERMII_API_KEY` | no | SMS sending fails gracefully (logged, not thrown) if unset |
-| `TERMII_SENDER_ID` | no (default `RentStack`) | Registered sender ID |
+| `BREVO_API_KEY` | yes | Without it, signup OTP emails can't send (registration will fail) and payment-receipt emails fail gracefully (logged, not thrown) |
+| `BREVO_SENDER_EMAIL` | no (default `notifications@rentstack.app`) | Must be a verified sender in your Brevo account |
+| `BREVO_SENDER_NAME` | no (default `RentStack`) | Display name on outgoing emails |
 | `INTERNAL_WEBHOOK_ALLOW_UNSIGNED` | no (default `false`) | Dev-only escape hatch to test `/api/webhooks/nomba` locally without a real signature. **Must be `false` in any deployed environment.** |
 
 ## Setup
@@ -155,8 +162,8 @@ see [Troubleshooting](#troubleshooting) if you're ever unsure).
 2. **SQL Editor → New query** → paste the entire contents of
    `supabase/schema.sql` → **Run**. You should see "Success. No rows
    returned." Verify in **Table Editor** that `landlords`, `tenants`,
-   `tenant_kyc_events`, `payments`, `sms_logs`, and `webhook_events` all
-   exist.
+   `tenant_kyc_events`, `payments`, `notification_logs`, `otp_codes`,
+   and `webhook_events` all exist.
 3. **Settings → API Keys** → copy:
    - **Project URL** → `SUPABASE_URL`
    - **anon / public** key → `SUPABASE_ANON_KEY`
@@ -165,6 +172,37 @@ see [Troubleshooting](#troubleshooting) if you're ever unsure).
 Supabase Auth is used as-is for landlord accounts. The `landlords`
 table is a 1:1 profile extension of `auth.users` (same `id`). No email
 template setup is required — see [Known simplifications](#known-simplifications).
+
+> **If you already ran an earlier version of `schema.sql`** (before
+> `notification_logs`/`otp_codes` existed), run this once instead of
+> the full script — it renames the old `sms_logs` table in place and
+> adds the new OTP table, so you don't lose any existing data:
+> ```sql
+> alter table sms_logs rename to notification_logs;
+> alter table notification_logs rename column to_phone to to_address;
+> alter table notification_logs add column if not exists channel text not null default 'email' check (channel in ('email'));
+> alter table notification_logs add column if not exists subject text;
+> alter table notification_logs alter column provider set default 'Brevo';
+> drop policy if exists "landlords read own tenants sms logs" on notification_logs;
+> create policy "landlords read own tenants notification logs" on notification_logs
+>   for select using (auth.uid() = (select landlord_id from tenants where tenants.id = notification_logs.tenant_id));
+>
+> create table if not exists otp_codes (
+>   id uuid primary key default gen_random_uuid(),
+>   email text not null,
+>   code text not null,
+>   purpose text not null default 'signup' check (purpose in ('signup')),
+>   expires_at timestamptz not null,
+>   verified_at timestamptz,
+>   consumed_at timestamptz,
+>   created_at timestamptz not null default now()
+> );
+> create index if not exists idx_otp_codes_email on otp_codes (email);
+> alter table otp_codes enable row level security;
+>
+> grant all on all tables in schema public to service_role;
+> grant all on all sequences in schema public to service_role;
+> ```
 
 > **If you hit `permission denied for table X`:** tables created via
 > the SQL Editor don't always inherit the same grants Supabase's Table
@@ -202,11 +240,21 @@ Steps:
    `POST /api/payments/:id/return` will work — if it 403s, that's
    likely why; ask them to enable it for your sub-account.
 
-### 3. Termii (SMS)
+### 3. Brevo (email)
 
-Get your API key from [termii.com](https://termii.com) →
-`TERMII_API_KEY`. Register a sender ID (or use a shared/test one while
-in sandbox) → `TERMII_SENDER_ID`.
+We use Brevo instead of an SMS provider (like Termii) for two reasons:
+it has a genuine free tier for transactional email (unlike per-SMS
+pricing with no meaningful free allowance), and every tenant/landlord
+already has an email address in the data model — no new data collection
+needed.
+
+1. Sign up at [brevo.com](https://www.brevo.com), then **Settings → SMTP & API → API Keys** → generate a key → `BREVO_API_KEY`.
+2. **Senders, Domains & Dedicated IPs** → add and verify a sender email
+   (their flow emails you a confirmation link) → that address goes in
+   `BREVO_SENDER_EMAIL`.
+3. Used for two things: `POST /api/auth/request-otp` (signup
+   verification code) and the payment-receipt email fired from
+   `reconciliationService.js` after every reconciled payment.
 
 ### 4. Install & run locally
 
@@ -221,8 +269,8 @@ npm run dev             # http://localhost:4000
 
 ## Deployment
 
-Nomba's (and Termii's) servers can't reach `localhost` — you need a
-public URL. Steps for **Render** (free tier, no CLI needed):
+Nomba's servers can't reach `localhost` — you need a public URL. Steps
+for **Render** (free tier, no CLI needed):
 
 1. Push this repo to GitHub.
 2. [Render dashboard](https://dashboard.render.com) → **New → Blueprint**
@@ -246,16 +294,29 @@ before a real launch.
 
 ## Authentication
 
-Landlord auth is Supabase Auth (email/password) end to end:
+Landlord auth is Supabase Auth (email/password), with an email-OTP
+verification step in front of registration:
 
-1. `POST /api/auth/register` or `POST /api/auth/login` returns a
+1. `POST /api/auth/request-otp { email }` — checks the email isn't
+   already registered, generates a 6-digit code, stores it in
+   `otp_codes` (10-minute expiry), emails it via Brevo.
+2. `POST /api/auth/verify-otp { email, code }` — marks the code (and
+   email) verified. Doesn't create an account yet.
+3. `POST /api/auth/register {...}` — requires a verified,
+   not-yet-consumed OTP for that email less than 30 minutes old
+   (`otpService.assertEmailVerifiedForSignup`), or it 400s. On success,
+   consumes the OTP (so it can't be replayed) and creates the Supabase
+   Auth user with `email_confirm: true` — safe to auto-confirm because
+   the OTP step already proved the address is real, so there's no need
+   for Supabase's own separate confirmation-email flow on top of it.
+4. `POST /api/auth/login` or a successful `register` both return a
    `session.accessToken` (a Supabase JWT, ~1hr lifetime) and
    `refreshToken`.
-2. Every other landlord-facing route requires:
+5. Every other landlord-facing route requires:
    ```
    Authorization: Bearer <accessToken>
    ```
-3. `requireAuth` middleware verifies the token against Supabase Auth
+6. `requireAuth` middleware verifies the token against Supabase Auth
    (`supabaseAuth.auth.getUser(token)`), then loads the matching
    `landlords` row and attaches it as `req.landlord` /
    `req.landlordId` for every downstream handler.
@@ -277,10 +338,11 @@ secured instead.
 | **tenants** | `id`, `landlord_id`, `name`, `unit`, `rent_amount`, `move_in_date`, `move_out_date`, `status`, `kyc_tier`, `nomba_account_ref`, `virtual_account_number`, `bank_name` | `status` is cached/derived, kept in sync by `reconciliationService.refreshTenantStatus` |
 | **tenant_kyc_events** | `tenant_id`, `from_tier`, `to_tier`, `reason`, `acknowledged` | Powers the KYC-change landlord alert |
 | **payments** | `id`, `landlord_id` (nullable), `tenant_id` (nullable), `amount`, `type`, `reference` (unique), `sender_bank`, `sender_account_name`, `sender_account_number`, `nomba_account_ref`, `resolved`, `raw_payload` | `type` ∈ `full, partial, overpayment, disputed, misdirected, returned`. See [Payment reconciliation logic](#payment-reconciliation-logic) for why `landlord_id`/`tenant_id` can be null |
-| **sms_logs** | `tenant_id`, `payment_id`, `to_phone`, `message`, `status`, `provider_message_id` | One row per receipt SMS actually attempted |
+| **notification_logs** | `tenant_id`, `payment_id`, `channel`, `to_address`, `subject`, `message`, `status`, `provider_message_id` | One row per payment-receipt email actually attempted |
+| **otp_codes** | `email`, `code`, `purpose`, `expires_at`, `verified_at`, `consumed_at` | Signup verification codes — not tied to a landlord row (exists before the account does); service-role only, no RLS read policy at all |
 | **webhook_events** | `event_type`, `request_id`, `payload` (jsonb), `signature_valid`, `processed`, `processing_error` | Raw audit log of **every** webhook Nomba has ever sent, valid or not |
 
-Row Level Security is enabled on all six tables. Policies scope `select`
+Row Level Security is enabled on all eight tables. Policies scope `select`
 to `auth.uid() = landlord_id` (directly, or via a join through
 `tenants` for the two child tables) — there are **no write policies**,
 so all writes are only possible through this API's `service_role`
@@ -293,6 +355,29 @@ All request/response bodies are JSON. All routes below except
 `Authorization: Bearer <accessToken>` header described above.
 
 ### Auth
+
+<details>
+<summary><code>POST /api/auth/request-otp</code></summary>
+
+```jsonc
+// Request
+{ "email": "a@b.com" }
+// Response (200)
+{ "success": true }
+```
+409s with `{ "error": "An account with this email already exists." }` if already registered.
+</details>
+
+<details>
+<summary><code>POST /api/auth/verify-otp</code></summary>
+
+```jsonc
+// Request
+{ "email": "a@b.com", "code": "123456" }
+// Response (200)
+{ "success": true }
+```
+</details>
 
 <details>
 <summary><code>POST /api/auth/register</code></summary>
@@ -345,7 +430,7 @@ Returns `{ "success": true }`. See [Authentication](#authentication) for why thi
 | `GET /api/tenants/:id/reliability-score` | `{ score, tier, cyclesTracked, onTimeCount, partialCount, missedCount, breakdown, generatedAt }` |
 | `GET /api/tenants/:id/reliability-score/share` | `{ url }` — mints a 30-day signed link, resolved by `GET /public/score/:token` |
 | `GET /api/tenants/:id/statement/share` | `{ url }` — same mechanism, resolved by `GET /public/statement/:token` |
-| `GET /api/tenants/:id/sms-log` | Every receipt SMS sent to this tenant |
+| `GET /api/tenants/:id/notifications` | Every payment-receipt email sent to this tenant |
 
 ### Payments
 
@@ -405,9 +490,10 @@ This is the core business logic, in `reconciliationService.js` and `utils/cycles
 6. Insert the `payments` row, then `refreshTenantStatus()` recomputes
    and caches the tenant's `status` column from that same cycle's rows
    (so it never drifts from the underlying payment history).
-7. If a tenant was matched and the type isn't `misdirected`/`returned`,
-   `smsService.sendPaymentReceiptSms()` fires (best-effort — logged to
-   `sms_logs` either way, success or failure).
+7. If a tenant was matched, the type isn't `misdirected`/`returned`,
+   and the tenant has an email on file, `brevoService.sendEmail()` fires
+   (best-effort — logged to `notification_logs` either way, success or
+   failure; a failed email never blocks the payment write).
 
 **Cycles** are always calendar months, keyed `"YYYY-MM"`. `dashboardController`
 and `reportController` both use the same `cycleBounds()`/`classifyCycle()`
@@ -476,8 +562,9 @@ forwards any rejected promise to `errorHandler` automatically.
 
 ## Things that need your verification
 
-Built against Nomba's and Termii's actual published docs, but two
-specifics couldn't be confirmed from public docs alone:
+Built against Nomba's and Brevo's actual published docs (fetched while
+writing this, not from memory), but two specifics couldn't be confirmed
+from public docs alone:
 
 1. **Exact webhook `data` field names** for a virtual-account credit
    (`payment_success`) — amount, sender bank, sender account name/number.
@@ -487,10 +574,12 @@ specifics couldn't be confirmed from public docs alone:
    `nombaService.js` tries several plausible field names — trigger one
    real sandbox transfer, log `req.body` in `webhookController.js`, and
    tighten the field list to match reality before relying on it.
-2. **Termii's base URL** — `smsService.js` uses `https://api.ng.termii.com`
-   (the widely-documented host), but Termii's own docs rendered it as a
-   template placeholder rather than literal text in what was fetched
-   while building this. Confirm against your Termii dashboard.
+2. **Brevo's free-tier email limits** — their transactional email API
+   (`POST https://api.brevo.com/v3/smtp/email`, confirmed) works exactly
+   as documented in this codebase, but their pricing page didn't render
+   as static content when checked, so the exact free daily/monthly
+   email allowance isn't confirmed here. Check your own Brevo dashboard
+   if volume matters for your use case.
 
 ## Troubleshooting
 

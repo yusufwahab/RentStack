@@ -1,6 +1,21 @@
 import { supabaseAdmin, supabaseAuth } from "../config/supabaseAdmin.js";
+import { requestSignupOtp, verifySignupOtp, assertEmailVerifiedForSignup } from "../services/otpService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
+
+// POST /api/auth/request-otp — first step of signup. Emails a 6-digit
+// code via Brevo. 409s if the email is already registered.
+export const requestOtp = asyncHandler(async (req, res) => {
+  const result = await requestSignupOtp(req.body.email);
+  res.json(result);
+});
+
+// POST /api/auth/verify-otp — second step. Marks the code (and email)
+// verified; register() below checks for this before creating an account.
+export const verifyOtp = asyncHandler(async (req, res) => {
+  const result = await verifySignupOtp(req.body.email, req.body.code);
+  res.json(result);
+});
 
 // POST /api/auth/register
 export const register = asyncHandler(async (req, res) => {
@@ -8,10 +23,13 @@ export const register = asyncHandler(async (req, res) => {
   if (!name || !email || !password) throw ApiError.badRequest("name, email and password are required.");
   if (password.length < 8) throw ApiError.badRequest("Password must be at least 8 characters.");
 
-  // Using the admin API to create the user directly (email_confirm: true)
-  // so registration works without wiring up Supabase's email templates
-  // first. For a production launch, prefer `supabaseAuth.auth.signUp()`
-  // plus a real confirmation email flow instead of auto-confirming.
+  // Requires a verified, unconsumed, not-expired OTP for this email —
+  // consumes it on success so it can't be replayed. email_confirm: true
+  // below is safe because our own OTP step already proved the address
+  // is real; we don't need Supabase's separate email-confirmation flow
+  // on top of it.
+  await assertEmailVerifiedForSignup(email);
+
   const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,

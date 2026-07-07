@@ -116,21 +116,44 @@ create index if not exists idx_payments_occurred on payments (occurred_at);
 create index if not exists idx_payments_misdirected on payments (landlord_id, resolved) where tenant_id is null;
 
 -- ---------------------------------------------------------------
--- sms_logs — one row per payment-receipt SMS actually sent.
+-- notification_logs — one row per payment-receipt email actually sent
+-- (via Brevo). Named generically (not `email_logs`) since `channel`
+-- leaves room for another provider/medium later without a rename.
 -- ---------------------------------------------------------------
-create table if not exists sms_logs (
+create table if not exists notification_logs (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references tenants (id) on delete cascade,
   payment_id uuid references payments (id) on delete set null,
-  provider text not null default 'Termii',
-  to_phone text not null,
+  channel text not null default 'email' check (channel in ('email')),
+  provider text not null default 'Brevo',
+  to_address text not null,
+  subject text,
   message text not null,
   status text not null default 'sent' check (status in ('sent', 'failed')),
   provider_message_id text,
   sent_at timestamptz not null default now()
 );
 
-create index if not exists idx_sms_logs_tenant on sms_logs (tenant_id);
+create index if not exists idx_notification_logs_tenant on notification_logs (tenant_id);
+
+-- ---------------------------------------------------------------
+-- otp_codes — short-lived signup-verification codes emailed via
+-- Brevo. Not tied to a landlord/tenant row (verification happens
+-- before the account exists) — backend/service-role only, never
+-- readable by an authenticated user (see RLS section below).
+-- ---------------------------------------------------------------
+create table if not exists otp_codes (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  code text not null,
+  purpose text not null default 'signup' check (purpose in ('signup')),
+  expires_at timestamptz not null,
+  verified_at timestamptz,
+  consumed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_otp_codes_email on otp_codes (email);
 
 -- ---------------------------------------------------------------
 -- webhook_events — raw audit log of everything Nomba has ever sent
@@ -167,8 +190,9 @@ alter table landlords enable row level security;
 alter table tenants enable row level security;
 alter table tenant_kyc_events enable row level security;
 alter table payments enable row level security;
-alter table sms_logs enable row level security;
+alter table notification_logs enable row level security;
 alter table webhook_events enable row level security;
+alter table otp_codes enable row level security;
 
 create policy "landlords read own row" on landlords
   for select using (auth.uid() = id);
@@ -187,13 +211,14 @@ create policy "landlords read own tenants kyc events" on tenant_kyc_events
     auth.uid() = (select landlord_id from tenants where tenants.id = tenant_kyc_events.tenant_id)
   );
 
-create policy "landlords read own tenants sms logs" on sms_logs
+create policy "landlords read own tenants notification logs" on notification_logs
   for select using (
-    auth.uid() = (select landlord_id from tenants where tenants.id = sms_logs.tenant_id)
+    auth.uid() = (select landlord_id from tenants where tenants.id = notification_logs.tenant_id)
   );
 
--- webhook_events has no read policy for authenticated users — it's
--- backend/service-role only (may contain unverified/raw payloads).
+-- webhook_events and otp_codes have no read policy for authenticated
+-- users — both are backend/service-role only (webhook_events may hold
+-- unverified/raw payloads; otp_codes exists before any account does).
 
 -- =============================================================
 -- Grants

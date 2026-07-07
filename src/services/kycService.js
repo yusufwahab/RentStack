@@ -1,6 +1,7 @@
 import { USE_MOCK } from "../config";
 import { mockDelay } from "../mock/mockDelay";
 import { mockTenants } from "../mock/mockData";
+import { get } from "../api/apiClient";
 
 // CBN's tiered KYC framework caps balance and transfer limits by tier.
 // A downgrade can silently reduce how much a tenant is able to move in a
@@ -23,6 +24,7 @@ export async function getTenantKyc(tenantId) {
       tierChange: tenant.kycTierChange || null,
     });
   }
+  return get(`/api/tenants/${tenantId}/kyc`);
 }
 
 // MOCK: Replace with GET /api/kyc/alerts when backend is ready
@@ -40,4 +42,5 @@ export async function getKycAlerts() {
       }));
     return mockDelay(alerts);
   }
+  return get("/api/kyc/alerts");
 }

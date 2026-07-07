@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAsync } from "../../hooks/useAsync";
 import { getTenantById, getTenantPaymentHistory, offboardTenant, getShareableStatementLink } from "../../services/tenantService";
 import { getTenantKyc } from "../../services/kycService";
-import { getSmsLogForTenant } from "../../services/smsService";
+import { getNotificationsForTenant } from "../../services/notificationService";
 import Spinner from "../../components/ui/Spinner";
 import ErrorMessage from "../../components/ui/ErrorMessage";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -23,7 +23,7 @@ export default function TenantDetailPage() {
   const { data: tenant, loading: tLoading, error: tError, retry: tRetry } = useAsync(() => getTenantById(id), [id]);
   const { data: history, loading: hLoading, error: hError, retry: hRetry } = useAsync(() => getTenantPaymentHistory(id), [id]);
   const { data: kyc } = useAsync(() => getTenantKyc(id), [id]);
-  const { data: smsLog } = useAsync(() => getSmsLogForTenant(id), [id]);
+  const { data: notifications } = useAsync(() => getNotificationsForTenant(id), [id]);
 
   async function handleOffboard() {
     if (!tenant || !window.confirm(`Offboard ${tenant.name}? This cannot be undone.`)) return;
@@ -202,20 +202,20 @@ export default function TenantDetailPage() {
             </div>
           )}
 
-          {smsLog && smsLog.length > 0 && (
+          {notifications && notifications.length > 0 && (
             <div className="mt-6 bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-[#E5E7EB] flex items-center gap-2">
-                <Icon name="chatBubble" className="w-4 h-4 text-[#64748B]" />
-                <h2 className="font-semibold text-[#0B1F17] text-sm">SMS Notifications Sent</h2>
+                <Icon name="envelope" className="w-4 h-4 text-[#64748B]" />
+                <h2 className="font-semibold text-[#0B1F17] text-sm">Email Notifications Sent</h2>
               </div>
               <div className="divide-y divide-[#F1F5F9] max-h-64 overflow-y-auto">
-                {smsLog.map((sms) => (
-                  <div key={sms.id} className="px-5 py-3">
+                {notifications.map((n) => (
+                  <div key={n.id} className="px-5 py-3">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-medium text-[#0B1F17]">{sms.to}</span>
-                      <span className="text-xs text-[#94A3B8] whitespace-nowrap">{formatDateTime(sms.sentAt)}</span>
+                      <span className="text-xs font-medium text-[#0B1F17]">{n.to}</span>
+                      <span className="text-xs text-[#94A3B8] whitespace-nowrap">{formatDateTime(n.sentAt)}</span>
                     </div>
-                    <p className="text-xs text-[#64748B] mt-1 leading-relaxed">{sms.message}</p>
+                    <p className="text-xs text-[#64748B] mt-1 leading-relaxed">{n.message}</p>
                   </div>
                 ))}
               </div>

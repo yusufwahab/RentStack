@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
 import { createVirtualAccount } from "../services/nombaService.js";
 import { getReliabilityScore, createShareToken } from "../services/reliabilityService.js";
+import { getCurrentCycleSummary } from "../services/reconciliationService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 
@@ -19,13 +20,17 @@ export const listTenants = asyncHandler(async (req, res) => {
     .eq("landlord_id", req.landlordId)
     .order("created_at", { ascending: true });
   if (error) throw ApiError.internal(error.message);
-  res.json(data);
+  const withCycle = await Promise.all(
+    data.map(async (t) => ({ ...t, currentCycle: await getCurrentCycleSummary(t) }))
+  );
+  res.json(withCycle);
 });
 
 // GET /api/tenants/:id
 export const getTenant = asyncHandler(async (req, res) => {
   const tenant = await fetchOwnedTenant(req.landlordId, req.params.id);
-  res.json(tenant);
+  const currentCycle = await getCurrentCycleSummary(tenant);
+  res.json({ ...tenant, currentCycle });
 });
 
 // POST /api/tenants
@@ -148,11 +153,11 @@ export const shareTenantStatement = asyncHandler(async (req, res) => {
   res.json({ url: `${req.protocol}://${req.get("host")}/public/statement/${token}` });
 });
 
-// GET /api/tenants/:id/sms-log
-export const getTenantSmsLog = asyncHandler(async (req, res) => {
+// GET /api/tenants/:id/notifications
+export const getTenantNotifications = asyncHandler(async (req, res) => {
   await fetchOwnedTenant(req.landlordId, req.params.id);
   const { data, error } = await supabaseAdmin
-    .from("sms_logs")
+    .from("notification_logs")
     .select("*")
     .eq("tenant_id", req.params.id)
     .order("sent_at", { ascending: false });

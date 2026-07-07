@@ -1,12 +1,16 @@
 import { USE_MOCK } from "../config";
 import { mockDelay } from "../mock/mockDelay";
 import { mockTenants, mockPayments } from "../mock/mockData";
+import { get, post, put } from "../api/apiClient";
+import { mapTenant, mapPayment } from "../utils/apiMappers";
 
 let tenants = [...mockTenants];
 
 // MOCK: Replace with GET /api/tenants when backend is ready
 export async function getAllTenants() {
   if (USE_MOCK) return mockDelay([...tenants]);
+  const rows = await get("/api/tenants");
+  return rows.map(mapTenant);
 }
 
 // MOCK: Replace with GET /api/tenants/:id when backend is ready
@@ -16,6 +20,8 @@ export async function getTenantById(id) {
     if (!tenant) throw new Error("Tenant not found.");
     return mockDelay({ ...tenant });
   }
+  const row = await get(`/api/tenants/${id}`);
+  return mapTenant(row);
 }
 
 // MOCK: Replace with POST /api/tenants when backend is ready
@@ -40,6 +46,8 @@ export async function addTenant(data) {
     tenants = [...tenants, newTenant];
     return mockDelay(newTenant);
   }
+  const row = await post("/api/tenants", data);
+  return mapTenant({ ...row, currentCycle: { due: row.rent_amount, paid: 0, balance: row.rent_amount, credit: 0 } });
 }
 
 // MOCK: Replace with PUT /api/tenants/:id when backend is ready
@@ -50,6 +58,8 @@ export async function updateTenant(id, data) {
     if (!updated) throw new Error("Tenant not found.");
     return mockDelay({ ...updated });
   }
+  const row = await put(`/api/tenants/${id}`, data);
+  return mapTenant(row);
 }
 
 // MOCK: Replace with POST /api/tenants/:id/offboard when backend is ready
@@ -67,6 +77,7 @@ export async function offboardTenant(id) {
     );
     return mockDelay({ success: true });
   }
+  return post(`/api/tenants/${id}/offboard`);
 }
 
 // MOCK: Replace with GET /api/tenants/:id/transactions when backend is ready
@@ -77,10 +88,14 @@ export async function getTenantPaymentHistory(id) {
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     return mockDelay(history);
   }
+  const rows = await get(`/api/tenants/${id}/transactions`);
+  return rows.map(mapPayment);
 }
 
 // MOCK: Simulates Nomba virtual account provisioning.
 // Returns a fake account number after a delay to mimic the real API call.
+// Only used in mock mode — the real backend provisions the account itself
+// as part of POST /api/tenants, so this is never called when USE_MOCK is false.
 export async function provisionVirtualAccount(tenantData) {
   if (USE_MOCK) {
     const banks = ["Wema Bank", "Sterling Bank"];
@@ -100,4 +115,5 @@ export async function getShareableStatementLink(id) {
     const token = btoa(`stmt:${id}:${Date.now()}`).replace(/=+$/, "");
     return mockDelay({ url: `https://rentstack.com/statements/${token}` }, 400);
   }
+  return get(`/api/tenants/${id}/statement/share`);
 }

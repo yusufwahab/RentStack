@@ -16,30 +16,29 @@ get one dashboard instead of a WhatsApp chat full of bank alerts.
 |---|---|
 | Frontend UI (this folder) | ✅ Fully built — landing page through every internal screen |
 | Backend API (`backend/`) | ✅ Fully built, deployed, connected to a real Supabase project |
-| Nomba integration | ⚠️ Webhook receiver is live and verifying signatures correctly; the actual Nomba API calls (virtual account provisioning, transfers) are **not yet connected** — still missing account credentials |
-| Frontend ↔ backend connection | ❌ **Not connected yet.** The frontend still runs entirely on its own mock service layer (see below) — real data from Supabase/Nomba isn't wired into any page yet |
-
-In short: the two halves of the product are each independently real and
-working, but they haven't been plugged into each other yet.
+| Frontend ↔ backend connection | ✅ **Connected.** Every service file calls the real API when `VITE_USE_MOCK=false` — verified end to end (registration, login, dashboard, tenants, payments, reports) |
+| Nomba integration | ✅ Verified — real virtual account provisioning confirmed working. ⚠️ Outbound transfers and a real (non-synthetic) webhook delivery aren't exercised yet |
+| Signup verification | ✅ Email OTP via Brevo required before an account is created (see [Auth flow](#auth-flow)) |
+| Payment-receipt notifications | ✅ Email via Brevo (not SMS — see [backend/README.md](backend/README.md#3-brevo-email) for why) |
 
 ## What's built (frontend)
 
 - **Landing page** — full marketing site: hero, reconciliation-scenario
   strip, featured-properties section, problem/solution, how-it-works,
   testimonials, CTA, footer.
-- **Auth & onboarding** — split-screen login, 3-step landlord onboarding
-  wizard. (Currently accepts any email/password while backed by mocks —
-  see [Demo login](#demo-login).)
+- **Auth & onboarding** — split-screen login, 4-step landlord signup
+  wizard (property details → account setup → email OTP verification →
+  done). See [Auth flow](#auth-flow).
 - **Landlord dashboard** — cycle selector (this month / last month / two
   months ago), financial KPIs, a prominent collection-rate bar, status
   breakdown, tenant payment-status table (with overdue flags and
   days-since-last-payment), a live recent-activity feed, upcoming due
   dates, property summary, quick actions, and a misdirected-payments
   alert banner.
-- **Tenants** — list, add (provisions a virtual account, mocked or
-  real), detail page with account info, current-cycle balance, KYC tier
-  + tier-change flagging, Rent Reliability Score, payment history,
-  SMS-notification log, statement download + shareable link, offboarding.
+- **Tenants** — list, add (provisions a real Nomba virtual account),
+  detail page with account info, current-cycle balance, KYC tier +
+  tier-change flagging, Rent Reliability Score, payment history, email
+  notification log, statement download + shareable link, offboarding.
 - **Payments** — full ledger plus a dedicated misdirected-payments queue
   with assign-to-tenant / return-to-sender actions.
 - **Reports** — monthly collection breakdown, per-tenant totals, CSV export.
@@ -56,68 +55,90 @@ nothing ever renders blank.
 - **React 19 + Vite + React Router**
 - **Tailwind CSS v4** (via `@tailwindcss/vite` — already configured, don't reinstall or modify)
 - No backend calls from any page directly — everything goes through a
-  service layer (see below), which is what makes the eventual backend
-  connection a config change rather than a rewrite.
+  service layer (see below), which is what made connecting the real
+  backend a config change rather than a rewrite.
 
 ## Getting started
 
 ```bash
 npm install
-npm run dev       # http://localhost:5173
+cp .env.example .env   # see "Mock vs. real backend" below
+npm run dev             # http://localhost:5173
 ```
 
-### Demo login
+## Mock vs. real backend
 
-The auth flow currently accepts **any email and password** (mocked —
-see `src/services/authService.js`). There's also a seeded demo
-landlord account with realistic data:
+`src/config.js` reads `VITE_USE_MOCK` from `.env`:
+
+- **`VITE_USE_MOCK=true`** (default) — every page runs entirely on
+  in-memory mock data (`src/mock/`), no network calls, no backend
+  needed. Login accepts any email/password. Good for UI work in
+  isolation.
+- **`VITE_USE_MOCK=false`** — every service function calls the real
+  backend instead, via `src/api/apiClient.js` (attaches the bearer
+  token automatically, redirects to `/login` on a 401). Set
+  `VITE_API_URL` to `http://localhost:4000` (local backend) or
+  `https://rentstack.onrender.com` (deployed). Registration then
+  requires a real email OTP (see below) and tenant creation provisions
+  a real Nomba virtual account.
+
+### Demo login (mock mode only)
 
 ```
 Email:    abdulwahab@rentstack.com
 Password: password123
 ```
 
-## Mock architecture
+In real mode, login checks actual Supabase-issued credentials — use an
+account you've registered, or ask a teammate who has one.
+
+## Auth flow
+
+Registration is a 4-step wizard (`src/pages/RegisterPage.jsx`):
+
+1. **Property details** — name, property name/address, phone.
+2. **Account setup** — email + password. Submitting this calls
+   `requestSignupOtp(email)`, which emails a 6-digit code via Brevo.
+3. **Verify email** — enter the code. Submitting calls
+   `verifySignupOtp(email, code)`, then immediately `register(...)` —
+   the account is only created after the code checks out.
+4. **Done** — redirects to the dashboard, already logged in.
+
+In mock mode, step 2 always "succeeds" and step 3 accepts any 6-digit
+code (no real email is sent). In real mode, the backend enforces the
+whole thing server-side regardless of what the frontend does — see
+[backend/README.md → Authentication](backend/README.md#authentication).
+
+## Architecture: the service layer
 
 Every page/component calls a function in `src/services/*.js` — never
-an API directly. Each service function checks the `USE_MOCK` flag
-(`src/config.js`, driven by `VITE_USE_MOCK` in `.env`) and either
-returns realistic mock data (wrapped in an artificial 600-900ms delay
-so loading states are always exercised) or — once connected — calls
-the real backend via `src/api/apiClient.js` (currently a stub).
+an API directly. Each service function checks the `USE_MOCK` flag and
+either returns realistic mock data (wrapped in an artificial
+600-900ms delay so loading states are always exercised) or calls the
+real backend, mapping Postgres's snake_case/flat response shapes back
+into the camelCase/nested shapes every page was built against
+(`src/utils/apiMappers.js` is where that translation lives).
 
 ```
 src/
   mock/            mockData.js (landlord, 8 tenants, 30+ payments), mockDelay.js
   services/        authService, tenantService, paymentService, dashboardService,
-                    reportService, webhookService, kycService, smsService, reliabilityService
-  api/              apiClient.js — stub, implement when connecting the real backend
+                    reportService, kycService, notificationService, reliabilityService
+  api/              apiClient.js — bearer-token fetch wrapper for the real backend
+  utils/            apiMappers.js — snake_case/nested-shape translation, format.js
   context/          AuthContext, AppContext
   hooks/            useAsync — the shared loading/error/retry pattern every page uses
   components/       Sidebar, layouts, and ui/ (Avatar, Icon, StatusBadge, PageBanner, ...)
   pages/            LandingPage, LoginPage, RegisterPage, landlord/*, tenant/*
 ```
 
-Every mock service function has a `// MOCK: Replace with <endpoint>`
-comment pointing at the exact real backend route it corresponds to —
-those routes already exist and are documented in
+Every service function has a `// MOCK: Replace with <endpoint>` comment
+pointing at the exact real backend route it calls — all documented in
 [backend/README.md](backend/README.md#api-reference).
-
-## Connecting the real backend (when ready)
-
-1. Set `VITE_USE_MOCK=false` and `VITE_API_URL=https://rentstack.onrender.com` in `.env`.
-2. Implement `src/api/apiClient.js` to attach the bearer token (from
-   login) and call the real API.
-3. In each `src/services/*.js` file, replace the mock branch with a
-   real `apiClient` call — the endpoint each one maps to is already
-   commented above the function.
-
-No page or component changes required — that's the point of the
-service-layer pattern.
 
 ## Backend
 
-The backend (Node.js/Express + Supabase + Nomba + Termii) lives in
+The backend (Node.js/Express + Supabase + Nomba + Brevo) lives in
 [`backend/`](backend/) and is a completely separate app with its own
 `package.json`, `.env`, and deployment. See
 **[backend/README.md](backend/README.md)** for architecture, full API

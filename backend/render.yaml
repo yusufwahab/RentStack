@@ -32,9 +32,11 @@ services:
         sync: false
       - key: NOMBA_WEBHOOK_SECRET
         sync: false
-      - key: TERMII_API_KEY
+      - key: BREVO_API_KEY
         sync: false
-      - key: TERMII_SENDER_ID
+      - key: BREVO_SENDER_EMAIL
+        value: notifications@rentstack.app
+      - key: BREVO_SENDER_NAME
         value: RentStack
       - key: INTERNAL_WEBHOOK_ALLOW_UNSIGNED
         value: "false"

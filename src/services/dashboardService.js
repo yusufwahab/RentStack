@@ -1,14 +1,30 @@
 import { USE_MOCK } from "../config";
 import { mockDelay } from "../mock/mockDelay";
 import { mockTenants, mockPayments, CURRENT_CYCLE } from "../mock/mockData";
+import { get } from "../api/apiClient";
+import { mapPayment, cycleKeyToLabel } from "../utils/apiMappers";
 
 const TODAY = new Date("2026-07-04");
 
-export const CYCLE_OPTIONS = [
-  { key: "2026-07", label: "July 2026 (Current)" },
-  { key: "2026-06", label: "June 2026" },
-  { key: "2026-05", label: "May 2026" },
-];
+function realCycleOptions() {
+  const now = new Date();
+  const options = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = cycleKeyToLabel(key) + (i === 0 ? " (Current)" : "");
+    options.push({ key, label });
+  }
+  return options;
+}
+
+export const CYCLE_OPTIONS = USE_MOCK
+  ? [
+      { key: "2026-07", label: "July 2026 (Current)" },
+      { key: "2026-06", label: "June 2026" },
+      { key: "2026-05", label: "May 2026" },
+    ]
+  : realCycleOptions();
 
 function cycleLabelFor(key) {
   return CYCLE_OPTIONS.find((c) => c.key === key)?.label || key;
@@ -138,4 +154,11 @@ export async function getDashboardStats(cycleKey = CURRENT_CYCLE) {
       },
     });
   }
+
+  const stats = await get(`/api/dashboard?cycle=${encodeURIComponent(cycleKey)}`);
+  return {
+    ...stats,
+    cycleLabel: cycleLabelFor(stats.cycleKey),
+    recentPayments: stats.recentPayments.map(mapPayment),
+  };
 }

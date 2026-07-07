@@ -1,6 +1,11 @@
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
-import { sendPaymentReceiptSms, shouldNotify } from "./smsService.js";
-import { currentCycleKey, cycleBounds } from "../utils/cycles.js";
+import { sendEmail, paymentReceiptEmailHtml } from "./brevoService.js";
+import { currentCycleKey, cycleBounds, classifyCycle } from "../utils/cycles.js";
+
+// Payment types that represent money that actually belongs to a tenant —
+// misdirected/returned payments never had a tenant, so no receipt email
+// is sent for them.
+const NOTIFIABLE_TYPES = ["full", "partial", "overpayment", "disputed"];
 
 // Nigerian names are commonly rendered in different orders/cases across
 // bank apps ("EZE CHIAMAKA" vs "Chiamaka Eze"), so we compare the *set* of
@@ -69,15 +74,19 @@ export async function processIncomingTransfer(transfer) {
     await refreshTenantStatus(tenant.id);
   }
 
-  if (tenant && shouldNotify(type)) {
-    const smsResult = await sendPaymentReceiptSms(tenant, payment);
-    await supabaseAdmin.from("sms_logs").insert({
+  if (tenant && NOTIFIABLE_TYPES.includes(type) && tenant.email) {
+    const subject = "Payment received — RentStack";
+    const html = paymentReceiptEmailHtml(tenant, payment);
+    const result = await sendEmail({ to: tenant.email, toName: tenant.name, subject, html });
+    await supabaseAdmin.from("notification_logs").insert({
       tenant_id: tenant.id,
       payment_id: payment.id,
-      to_phone: tenant.phone,
-      message: smsResult.message,
-      status: smsResult.success ? "sent" : "failed",
-      provider_message_id: smsResult.providerMessageId || null,
+      channel: "email",
+      to_address: tenant.email,
+      subject,
+      message: html,
+      status: result.success ? "sent" : "failed",
+      provider_message_id: result.messageId || null,
     });
   }
 
@@ -134,4 +143,20 @@ export async function refreshTenantStatus(tenantId) {
   else status = "OVERPAID";
 
   await supabaseAdmin.from("tenants").update({ status }).eq("id", tenantId);
+}
+
+// Current cycle's { due, paid, balance, credit } for a tenant — used by
+// the tenant list/detail endpoints so the frontend's TenantDetail/Tenants
+// pages get the same `currentCycle` shape the mock data always provided.
+export async function getCurrentCycleSummary(tenant) {
+  if (tenant.status === "CLOSED") return { due: 0, paid: 0, balance: 0, credit: 0 };
+  const { start, end } = cycleBounds(currentCycleKey());
+  const { data: payments } = await supabaseAdmin
+    .from("payments")
+    .select("amount, type")
+    .eq("tenant_id", tenant.id)
+    .gte("occurred_at", start.toISOString())
+    .lte("occurred_at", end.toISOString());
+  const { status: _status, ...summary } = classifyCycle(payments || [], Number(tenant.rent_amount));
+  return summary;
 }

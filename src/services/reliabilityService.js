@@ -1,6 +1,7 @@
 import { USE_MOCK } from "../config";
 import { mockDelay } from "../mock/mockDelay";
 import { mockTenants, mockPayments } from "../mock/mockData";
+import { get } from "../api/apiClient";
 
 // Every cycle RentStack has payment records for. A tenant's score only
 // looks back as far as their own move-in date.
@@ -52,6 +53,7 @@ export async function getReliabilityScore(tenantId) {
       generatedAt: new Date().toISOString(),
     });
   }
+  return get(`/api/tenants/${tenantId}/reliability-score`);
 }
 
 // MOCK: Simulates generating a shareable, verifiable link to a tenant's
@@ -61,4 +63,5 @@ export async function getShareableScoreLink(tenantId) {
     const token = btoa(`score:${tenantId}:${Date.now()}`).replace(/=+$/, "");
     return mockDelay({ url: `https://rentstack.com/verify/${token}` }, 400);
   }
+  return get(`/api/tenants/${tenantId}/reliability-score/share`);
 }
