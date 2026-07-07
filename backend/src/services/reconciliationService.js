@@ -1,10 +1,12 @@
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
-import { sendEmail, paymentReceiptEmailHtml } from "./brevoService.js";
+import { sendEmail, paymentReceiptEmailHtml, landlordPaymentAlertEmailHtml } from "./brevoService.js";
 import { currentCycleKey, cycleBounds, classifyCycle } from "../utils/cycles.js";
 
 // Payment types that represent money that actually belongs to a tenant —
 // misdirected/returned payments never had a tenant, so no receipt email
-// is sent for them.
+// is sent for them. Also used to decide when the landlord gets alerted —
+// misdirected payments have no known landlord_id to alert anyway (see
+// schema.sql comment on payments.landlord_id).
 const NOTIFIABLE_TYPES = ["full", "partial", "overpayment", "disputed"];
 
 // Nigerian names are commonly rendered in different orders/cases across
@@ -65,6 +67,7 @@ export async function processIncomingTransfer(transfer) {
       nomba_account_ref: transfer.accountRef,
       occurred_at: transfer.occurredAt,
       raw_payload: transfer.rawPayload ?? null,
+      source: transfer.source || "nomba",
     })
     .select()
     .single();
@@ -88,6 +91,29 @@ export async function processIncomingTransfer(transfer) {
       status: result.success ? "sent" : "failed",
       provider_message_id: result.messageId || null,
     });
+  }
+
+  if (tenant && NOTIFIABLE_TYPES.includes(type) && tenant.landlord_id) {
+    const { data: landlord } = await supabaseAdmin
+      .from("landlords")
+      .select("name, email")
+      .eq("id", tenant.landlord_id)
+      .maybeSingle();
+    if (landlord?.email) {
+      const subject = `${type === "full" ? "Payment" : type[0].toUpperCase() + type.slice(1)} received from ${tenant.name}`;
+      const html = landlordPaymentAlertEmailHtml(landlord, tenant, payment, type);
+      const result = await sendEmail({ to: landlord.email, toName: landlord.name, subject, html });
+      await supabaseAdmin.from("notification_logs").insert({
+        tenant_id: tenant.id,
+        payment_id: payment.id,
+        channel: "email",
+        to_address: landlord.email,
+        subject,
+        message: html,
+        status: result.success ? "sent" : "failed",
+        provider_message_id: result.messageId || null,
+      });
+    }
   }
 
   return { status: "processed", paymentId: payment.id, type, tenantId: tenant?.id ?? null };

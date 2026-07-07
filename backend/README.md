@@ -3,7 +3,8 @@
 Node.js/Express API for RentStack — a virtual-account-powered rent
 collection platform for Nigerian landlords. Backed by **Supabase**
 (Postgres + Auth) and integrated with **Nomba** (virtual accounts, bank
-transfers, webhooks) and **Brevo** (signup OTP + payment-receipt emails).
+transfers, webhooks) and **Brevo** (signup OTP + payment-receipt +
+payment-alert emails).
 
 > **Status:** This backend is built, deployed, and connected to the real
 > frontend (see [Connecting the frontend](#connecting-the-frontend) for
@@ -13,7 +14,10 @@ transfers, webhooks) and **Brevo** (signup OTP + payment-receipt emails).
 > working with real credentials. Not yet exercised for real: a
 > Nomba-triggered webhook (only tested with synthetic payloads so far)
 > and outbound transfers (Nomba must separately enable sub-account
-> transfers first).
+> transfers first). To make the reconciliation engine testable without
+> a real bank transfer, `POST /api/tenants/:id/process-payment` (frontend:
+> "Tenant's View") feeds it a synthetic transfer instead — see
+> [Payment reconciliation logic](#payment-reconciliation-logic).
 
 ---
 
@@ -211,6 +215,13 @@ template setup is required — see [Known simplifications](#known-simplification
 > if you ran an older copy of the file, re-run just that block (see
 > [Troubleshooting](#troubleshooting)).
 
+> **If your `payments` table predates the "Tenant's View" process-payment
+> feature**, run this once to add the column that distinguishes a real
+> Nomba transfer from a landlord's own test payment:
+> ```sql
+> alter table payments add column if not exists source text not null default 'nomba' check (source in ('nomba', 'simulated'));
+> ```
+
 ### 2. Nomba
 
 RentStack's Nomba credentials are a **sub-account under a parent
@@ -337,7 +348,7 @@ secured instead.
 | **landlords** | `id` (= `auth.users.id`), `name`, `email`, `phone`, `property_name`, `property_address`, `rent_per_unit` | 1:1 with Supabase Auth |
 | **tenants** | `id`, `landlord_id`, `name`, `unit`, `rent_amount`, `move_in_date`, `move_out_date`, `status`, `kyc_tier`, `nomba_account_ref`, `virtual_account_number`, `bank_name` | `status` is cached/derived, kept in sync by `reconciliationService.refreshTenantStatus` |
 | **tenant_kyc_events** | `tenant_id`, `from_tier`, `to_tier`, `reason`, `acknowledged` | Powers the KYC-change landlord alert |
-| **payments** | `id`, `landlord_id` (nullable), `tenant_id` (nullable), `amount`, `type`, `reference` (unique), `sender_bank`, `sender_account_name`, `sender_account_number`, `nomba_account_ref`, `resolved`, `raw_payload` | `type` ∈ `full, partial, overpayment, disputed, misdirected, returned`. See [Payment reconciliation logic](#payment-reconciliation-logic) for why `landlord_id`/`tenant_id` can be null |
+| **payments** | `id`, `landlord_id` (nullable), `tenant_id` (nullable), `amount`, `type`, `reference` (unique), `sender_bank`, `sender_account_name`, `sender_account_number`, `nomba_account_ref`, `source`, `resolved`, `raw_payload` | `type` ∈ `full, partial, overpayment, disputed, misdirected, returned`. `source` ∈ `nomba, simulated` — `simulated` rows come from "Tenant's View" test payments, not a real transfer. See [Payment reconciliation logic](#payment-reconciliation-logic) for why `landlord_id`/`tenant_id` can be null |
 | **notification_logs** | `tenant_id`, `payment_id`, `channel`, `to_address`, `subject`, `message`, `status`, `provider_message_id` | One row per payment-receipt email actually attempted |
 | **otp_codes** | `email`, `code`, `purpose`, `expires_at`, `verified_at`, `consumed_at` | Signup verification codes — not tied to a landlord row (exists before the account does); service-role only, no RLS read policy at all |
 | **webhook_events** | `event_type`, `request_id`, `payload` (jsonb), `signature_valid`, `processed`, `processing_error` | Raw audit log of **every** webhook Nomba has ever sent, valid or not |
@@ -430,6 +441,7 @@ Returns `{ "success": true }`. See [Authentication](#authentication) for why thi
 | `GET /api/tenants/:id/reliability-score` | `{ score, tier, cyclesTracked, onTimeCount, partialCount, missedCount, breakdown, generatedAt }` |
 | `GET /api/tenants/:id/reliability-score/share` | `{ url }` — mints a 30-day signed link, resolved by `GET /public/score/:token` |
 | `GET /api/tenants/:id/statement/share` | `{ url }` — same mechanism, resolved by `GET /public/statement/:token` |
+| `POST /api/tenants/:id/process-payment` | Body: `{ amount }`. Runs `amount` through the **exact same** `processIncomingTransfer` function the real Nomba webhook uses — same full/partial/overpayment/disputed classification, same tenant + landlord email alerts — just with a synthetic transfer instead of a signed Nomba payload. The resulting `payments` row has `source = 'simulated'` (internal flag only — never shown to users). Powers the frontend's "Tenant's View" test-payment button; requires the landlord's own auth token, same as every other tenant route |
 | `GET /api/tenants/:id/notifications` | Every payment-receipt email sent to this tenant |
 
 ### Payments
@@ -470,10 +482,15 @@ Returns `{ "success": true }`. See [Authentication](#authentication) for why thi
 
 ## Payment reconciliation logic
 
-This is the core business logic, in `reconciliationService.js` and `utils/cycles.js`:
+This is the core business logic, in `reconciliationService.js` and `utils/cycles.js`. It's fed from two places — a
+real Nomba webhook, or the "Tenant's View" process-payment button — both of which build the same `transfer` shape
+and hand it to `processIncomingTransfer()`, so the steps below apply identically either way:
 
 1. A webhook arrives → `extractIncomingTransfer()` pulls out
-   `accountRef`, `amount`, `reference`, sender details.
+   `accountRef`, `amount`, `reference`, sender details. (Or: a landlord
+   hits "Process Payment" in Tenant's View, and `processPayment()` in
+   `tenantController.js` builds an equivalent object directly, tagged
+   `source: 'simulated'` internally.)
 2. **Idempotency check**: if `reference` already exists in `payments`,
    stop — Nomba retries webhooks on anything but a 2XX response, so
    duplicates are expected and must be ignored.
@@ -490,10 +507,14 @@ This is the core business logic, in `reconciliationService.js` and `utils/cycles
 6. Insert the `payments` row, then `refreshTenantStatus()` recomputes
    and caches the tenant's `status` column from that same cycle's rows
    (so it never drifts from the underlying payment history).
-7. If a tenant was matched, the type isn't `misdirected`/`returned`,
-   and the tenant has an email on file, `brevoService.sendEmail()` fires
-   (best-effort — logged to `notification_logs` either way, success or
-   failure; a failed email never blocks the payment write).
+7. If a tenant was matched and the type isn't `misdirected`/`returned`:
+   a receipt email fires to the tenant (if they have an email on file),
+   and a separate alert email fires to the **landlord** (if the tenant's
+   `landlord_id` resolves to a landlord with an email — misdirected
+   payments have no `landlord_id`, so they're never alerted on today).
+   Both are best-effort via `brevoService.sendEmail()` — logged to
+   `notification_logs` either way, success or failure; a failed email
+   never blocks the payment write.
 
 **Cycles** are always calendar months, keyed `"YYYY-MM"`. `dashboardController`
 and `reportController` both use the same `cycleBounds()`/`classifyCycle()`

@@ -211,7 +211,7 @@ export default function DashboardPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#E5E7EB] bg-[#F7FAF8]">
-                      {["Tenant", "Unit", "Status", "Last Payment"].map((h) => (
+                      {["Tenant", "Unit", "Status", "Paid", "Balance", "Last Payment"].map((h) => (
                         <th key={h} className="text-left px-5 py-3 text-xs font-medium text-[#64748B] whitespace-nowrap">
                           {h}
                         </th>
@@ -233,6 +233,16 @@ export default function DashboardPage() {
                             <StatusBadge status={t.cycleStatus} />
                             {t.overdue && <StatusBadge status="OVERDUE" />}
                           </div>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-[#0B1F17] whitespace-nowrap">{fmt(t.cyclePaid)}</td>
+                        <td className="px-5 py-3 text-xs font-medium whitespace-nowrap">
+                          {t.cycleBalance > 0 ? (
+                            <span className="text-red-600">{fmt(t.cycleBalance)} due</span>
+                          ) : t.cycleCredit > 0 ? (
+                            <span className="text-blue-600">+{fmt(t.cycleCredit)} credit</span>
+                          ) : (
+                            <span className="text-emerald-600">Settled</span>
+                          )}
                         </td>
                         <td className="px-5 py-3 text-xs text-[#64748B] whitespace-nowrap">
                           {t.daysSinceLastPayment === null ? "No payments yet" : `${t.daysSinceLastPayment}d ago`}

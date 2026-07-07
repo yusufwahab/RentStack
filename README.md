@@ -19,7 +19,8 @@ get one dashboard instead of a WhatsApp chat full of bank alerts.
 | Frontend ↔ backend connection | ✅ **Connected.** Every service file calls the real API when `VITE_USE_MOCK=false` — verified end to end (registration, login, dashboard, tenants, payments, reports) |
 | Nomba integration | ✅ Verified — real virtual account provisioning confirmed working. ⚠️ Outbound transfers and a real (non-synthetic) webhook delivery aren't exercised yet |
 | Signup verification | ✅ Email OTP via Brevo required before an account is created (see [Auth flow](#auth-flow)) |
-| Payment-receipt notifications | ✅ Email via Brevo (not SMS — see [backend/README.md](backend/README.md#3-brevo-email) for why) |
+| Payment notifications | ✅ Email via Brevo (not SMS — see [backend/README.md](backend/README.md#3-brevo-email) for why) to both the tenant (receipt) and the landlord (alert) |
+| Tenant's View / process payment | ✅ Same-session tenant preview + test-payment button, reuses the real reconciliation engine (see [What's built](#whats-built-frontend)) |
 
 ## What's built (frontend)
 
@@ -39,6 +40,16 @@ get one dashboard instead of a WhatsApp chat full of bank alerts.
   detail page with account info, current-cycle balance, KYC tier +
   tier-change flagging, Rent Reliability Score, payment history, email
   notification log, statement download + shareable link, offboarding.
+- **Tenant's View** — a sidebar page inside the same landlord session
+  (no second login) that shows the app from a chosen tenant's
+  perspective and lets you process a bank transfer into their virtual
+  account. It runs through the exact same reconciliation engine a real
+  Nomba webhook uses — full/partial/overpayment/disputed classification,
+  tenant + landlord email alerts, dashboard updates — the only
+  difference is the transfer is synthetic instead of a real bank
+  transfer. Meant both as a real "preview my tenant's experience"
+  feature and as the easiest way to demo the reconciliation flow
+  end-to-end without moving real money.
 - **Payments** — full ledger plus a dedicated misdirected-payments queue
   with assign-to-tenant / return-to-sender actions.
 - **Reports** — monthly collection breakdown, per-tenant totals, CSV export.

@@ -65,3 +65,22 @@ export function paymentReceiptEmailHtml(tenant, payment) {
       <p style="color:#64748B;font-size:12px">Reference: ${payment.reference}</p>
     </div>`;
 }
+
+const TYPE_LABELS = {
+  full: "Full payment",
+  partial: "Partial payment",
+  overpayment: "Overpayment",
+  disputed: "Disputed payment (sender name mismatch)",
+};
+
+export function landlordPaymentAlertEmailHtml(landlord, tenant, payment, type) {
+  const amount = Number(payment.amount).toLocaleString("en-NG");
+  const label = TYPE_LABELS[type] || type;
+  return `
+    <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:24px">
+      <h2 style="color:#0B1F17;margin-bottom:8px">${label} from ${tenant.name}</h2>
+      <p style="color:#334155;font-size:14px">Hi ${landlord.name.split(" ")[0]}, <strong>${tenant.name}</strong>
+        (${tenant.unit}) just paid <strong>₦${amount}</strong>. Status: <strong>${label}</strong>.</p>
+      <p style="color:#64748B;font-size:12px">Reference: ${payment.reference}</p>
+    </div>`;
+}

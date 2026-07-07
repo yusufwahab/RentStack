@@ -12,6 +12,7 @@ import {
   shareTenantReliabilityScore,
   shareTenantStatement,
   getTenantNotifications,
+  processPayment,
 } from "../controllers/tenantController.js";
 
 const router = Router();
@@ -28,5 +29,6 @@ router.get("/:id/reliability-score", getTenantReliabilityScore);
 router.get("/:id/reliability-score/share", shareTenantReliabilityScore);
 router.get("/:id/statement/share", shareTenantStatement);
 router.get("/:id/notifications", getTenantNotifications);
+router.post("/:id/process-payment", processPayment);
 
 export default router;

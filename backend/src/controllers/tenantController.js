@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
 import { createVirtualAccount } from "../services/nombaService.js";
 import { getReliabilityScore, createShareToken } from "../services/reliabilityService.js";
-import { getCurrentCycleSummary } from "../services/reconciliationService.js";
+import { getCurrentCycleSummary, processIncomingTransfer } from "../services/reconciliationService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 
@@ -151,6 +151,36 @@ export const shareTenantStatement = asyncHandler(async (req, res) => {
   await fetchOwnedTenant(req.landlordId, req.params.id);
   const token = createShareToken(req.params.id);
   res.json({ url: `${req.protocol}://${req.get("host")}/public/statement/${token}` });
+});
+
+// POST /api/tenants/:id/process-payment
+//
+// "Tenant's View" test-payment button. Runs the payment through the exact
+// same reconciliation engine a real Nomba webhook uses (processIncomingTransfer)
+// — the only difference is the transfer is constructed here instead of parsed
+// from a signed Nomba payload. Lets a landlord (or a judge) exercise the full
+// full/partial/overpayment/disputed flow without a real bank transfer.
+export const processPayment = asyncHandler(async (req, res) => {
+  const tenant = await fetchOwnedTenant(req.landlordId, req.params.id);
+  if (tenant.status === "CLOSED") throw ApiError.badRequest("This tenant has been offboarded.");
+
+  const amount = Number(req.body.amount);
+  if (!amount || amount <= 0) throw ApiError.badRequest("amount must be a positive number.");
+
+  const transfer = {
+    reference: `SIM-${crypto.randomUUID()}`,
+    accountRef: tenant.nomba_account_ref,
+    amount,
+    senderBank: "RentStack (test payment)",
+    senderAccountName: tenant.account_name,
+    senderAccountNumber: tenant.virtual_account_number,
+    occurredAt: new Date().toISOString(),
+    rawPayload: null,
+    source: "simulated",
+  };
+
+  const result = await processIncomingTransfer(transfer);
+  res.status(201).json(result);
 });
 
 // GET /api/tenants/:id/notifications

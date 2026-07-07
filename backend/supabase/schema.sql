@@ -103,6 +103,12 @@ create table if not exists payments (
   -- Which virtual account the money landed on, as reported by Nomba.
   nomba_account_ref text,
 
+  -- 'nomba' = a real transfer via the webhook. 'simulated' = created from
+  -- the landlord's own "Tenant's View" test-payment button (no real money
+  -- moved) — lets judges/demo users exercise the same reconciliation
+  -- engine without needing a real bank transfer.
+  source text not null default 'nomba' check (source in ('nomba', 'simulated')),
+
   resolved boolean not null default false,
   raw_payload jsonb,
 

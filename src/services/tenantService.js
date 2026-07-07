@@ -5,6 +5,7 @@ import { get, post, put } from "../api/apiClient";
 import { mapTenant, mapPayment } from "../utils/apiMappers";
 
 let tenants = [...mockTenants];
+let payments = [...mockPayments];
 
 // MOCK: Replace with GET /api/tenants when backend is ready
 export async function getAllTenants() {
@@ -83,13 +84,56 @@ export async function offboardTenant(id) {
 // MOCK: Replace with GET /api/tenants/:id/transactions when backend is ready
 export async function getTenantPaymentHistory(id) {
   if (USE_MOCK) {
-    const history = mockPayments
+    const history = payments
       .filter((p) => p.tenantId === id)
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     return mockDelay(history);
   }
   const rows = await get(`/api/tenants/${id}/transactions`);
   return rows.map(mapPayment);
+}
+
+// MOCK: Replace with POST /api/tenants/:id/process-payment when backend is ready
+// "Tenant's View" test-payment button — runs the same full/partial/overpayment
+// classification the real webhook path uses, without a real bank transfer.
+export async function processPayment(id, amount) {
+  if (USE_MOCK) {
+    const tenant = tenants.find((t) => t.id === id);
+    if (!tenant) throw new Error("Tenant not found.");
+
+    const cyclePaidSoFar = payments
+      .filter((p) => p.tenantId === id && p.date.slice(0, 7) === new Date().toISOString().slice(0, 7))
+      .reduce((sum, p) => sum + p.amount, 0);
+    const newTotal = cyclePaidSoFar + Number(amount);
+    const type = newTotal === tenant.rentAmount ? "full" : newTotal < tenant.rentAmount ? "partial" : "overpayment";
+
+    const payment = {
+      id: `p-proc-${Date.now()}`,
+      tenantId: id,
+      amount: Number(amount),
+      type,
+      date: new Date().toISOString(),
+      reference: `PROC-${Date.now()}`,
+      senderBank: "RentStack (test payment)",
+      senderAccountName: tenant.accountName,
+    };
+    payments = [...payments, payment];
+
+    const due = tenant.rentAmount;
+    const paid = newTotal;
+    tenants = tenants.map((t) =>
+      t.id === id
+        ? {
+            ...t,
+            status: type === "full" ? "PAID" : type === "partial" ? "PARTIAL" : "OVERPAID",
+            currentCycle: { due, paid, balance: Math.max(due - paid, 0), credit: Math.max(paid - due, 0) },
+          }
+        : t
+    );
+
+    return mockDelay({ status: "processed", type }, 500);
+  }
+  return post(`/api/tenants/${id}/process-payment`, { amount: Number(amount) });
 }
 
 // MOCK: Simulates Nomba virtual account provisioning.
