@@ -6,8 +6,9 @@ import { mapLandlord } from "../utils/apiMappers";
 
 const STORAGE_KEY = "rentstack_user";
 
-// MOCK: Replace with POST /api/auth/request-otp when backend is ready
-// Sends a 6-digit code to `email` via Brevo — first step of signup.
+// Real backend: POST /api/auth/request-otp (live) — sends a 6-digit code to
+// `email` via Brevo, first step of signup. Falls back to mock data when
+// USE_MOCK is true.
 export async function requestSignupOtp(email) {
   if (USE_MOCK) {
     return mockDelay({ success: true }, 400);
@@ -15,8 +16,8 @@ export async function requestSignupOtp(email) {
   return post("/api/auth/request-otp", { email });
 }
 
-// MOCK: Replace with POST /api/auth/verify-otp when backend is ready
-// Mocked mode accepts any 6-digit code — there's no real email being sent.
+// Real backend: POST /api/auth/verify-otp (live). Mock mode accepts any
+// 6-digit code instead, since no real email is sent there.
 export async function verifySignupOtp(email, code) {
   if (USE_MOCK) {
     if (!/^\d{6}$/.test(code)) throw new Error("Enter the 6-digit code we emailed you.");
@@ -25,7 +26,7 @@ export async function verifySignupOtp(email, code) {
   return post("/api/auth/verify-otp", { email, code });
 }
 
-// MOCK: Replace with POST /api/auth/register when backend is ready
+// Real backend: POST /api/auth/register (live).
 export async function register(data) {
   if (USE_MOCK) {
     const user = { ...mockLandlord, ...data, id: "landlord-001" };
@@ -44,8 +45,8 @@ export async function register(data) {
   return { user: mapLandlord(user) };
 }
 
-// MOCK: Replace with POST /api/auth/login when backend is ready
-// Accepts any email/password while mocked — there is no real auth backend yet.
+// Real backend: POST /api/auth/login (live). Mock mode accepts any
+// email/password instead, since it's meant for isolated UI work.
 export async function login(email, password) {
   if (USE_MOCK) {
     const user = { ...mockLandlord, email: email || mockLandlord.email };
@@ -58,7 +59,7 @@ export async function login(email, password) {
   return { user: mapLandlord(user) };
 }
 
-// MOCK: Replace with GET /api/auth/me when backend is ready
+// Real backend: GET /api/auth/me (live).
 export async function getCurrentUser() {
   if (USE_MOCK) {
     const stored = localStorage.getItem(STORAGE_KEY);

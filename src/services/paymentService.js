@@ -15,7 +15,7 @@ function enrich(payment) {
   };
 }
 
-// MOCK: Replace with GET /api/payments when backend is ready
+// Real backend: GET /api/payments (live).
 export async function getAllPayments() {
   if (USE_MOCK) {
     const sorted = [...payments].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -25,7 +25,7 @@ export async function getAllPayments() {
   return rows.map(mapPayment);
 }
 
-// MOCK: Replace with GET /api/payments/misdirected when backend is ready
+// Real backend: GET /api/payments/misdirected (live).
 export async function getMisdirectedPayments() {
   if (USE_MOCK) {
     const misdirected = payments
@@ -37,7 +37,7 @@ export async function getMisdirectedPayments() {
   return rows.map(mapPayment);
 }
 
-// MOCK: Replace with POST /api/payments/:id/assign when backend is ready
+// Real backend: POST /api/payments/:id/assign (live).
 export async function assignMisdirectedPayment(paymentId, tenantId) {
   if (USE_MOCK) {
     payments = payments.map((p) =>
@@ -48,8 +48,8 @@ export async function assignMisdirectedPayment(paymentId, tenantId) {
   return post(`/api/payments/${paymentId}/assign`, { tenantId });
 }
 
-// MOCK: Replace with POST /api/payments/:id/return when backend is ready
-// This will trigger the Nomba Transfers API on the backend
+// Real backend: POST /api/payments/:id/return (live) — triggers a real
+// Nomba bank transfer back to the sender.
 export async function returnMisdirectedPayment(paymentId) {
   if (USE_MOCK) {
     payments = payments.map((p) =>

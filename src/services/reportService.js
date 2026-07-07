@@ -11,7 +11,7 @@ const MONTHS = [
   { key: "2026-07", label: "July 2026" },
 ];
 
-// MOCK: Replace with GET /api/reports when backend is ready
+// Real backend: GET /api/reports (live).
 export async function getReports(dateRange) {
   if (USE_MOCK) {
     let payments = [...mockPayments].filter((p) => p.tenantId !== null);

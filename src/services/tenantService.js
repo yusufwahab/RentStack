@@ -7,14 +7,14 @@ import { mapTenant, mapPayment } from "../utils/apiMappers";
 let tenants = [...mockTenants];
 let payments = [...mockPayments];
 
-// MOCK: Replace with GET /api/tenants when backend is ready
+// Real backend: GET /api/tenants (live).
 export async function getAllTenants() {
   if (USE_MOCK) return mockDelay([...tenants]);
   const rows = await get("/api/tenants");
   return rows.map(mapTenant);
 }
 
-// MOCK: Replace with GET /api/tenants/:id when backend is ready
+// Real backend: GET /api/tenants/:id (live).
 export async function getTenantById(id) {
   if (USE_MOCK) {
     const tenant = tenants.find((t) => t.id === id);
@@ -25,8 +25,8 @@ export async function getTenantById(id) {
   return mapTenant(row);
 }
 
-// MOCK: Replace with POST /api/tenants when backend is ready
-// This will also call the Nomba Virtual Account API on the backend
+// Real backend: POST /api/tenants (live) — also provisions a real Nomba
+// virtual account server-side.
 export async function addTenant(data) {
   if (USE_MOCK) {
     const account = await provisionVirtualAccount(data);
@@ -51,7 +51,7 @@ export async function addTenant(data) {
   return mapTenant({ ...row, currentCycle: { due: row.rent_amount, paid: 0, balance: row.rent_amount, credit: 0 } });
 }
 
-// MOCK: Replace with PUT /api/tenants/:id when backend is ready
+// Real backend: PUT /api/tenants/:id (live).
 export async function updateTenant(id, data) {
   if (USE_MOCK) {
     tenants = tenants.map((t) => (t.id === id ? { ...t, ...data } : t));
@@ -63,7 +63,7 @@ export async function updateTenant(id, data) {
   return mapTenant(row);
 }
 
-// MOCK: Replace with POST /api/tenants/:id/offboard when backend is ready
+// Real backend: POST /api/tenants/:id/offboard (live).
 export async function offboardTenant(id) {
   if (USE_MOCK) {
     tenants = tenants.map((t) =>
@@ -81,7 +81,7 @@ export async function offboardTenant(id) {
   return post(`/api/tenants/${id}/offboard`);
 }
 
-// MOCK: Replace with GET /api/tenants/:id/transactions when backend is ready
+// Real backend: GET /api/tenants/:id/transactions (live).
 export async function getTenantPaymentHistory(id) {
   if (USE_MOCK) {
     const history = payments
@@ -93,8 +93,8 @@ export async function getTenantPaymentHistory(id) {
   return rows.map(mapPayment);
 }
 
-// MOCK: Replace with POST /api/tenants/:id/process-payment when backend is ready
-// "Tenant's View" test-payment button — runs the same full/partial/overpayment
+// Real backend: POST /api/tenants/:id/process-payment (live) — the
+// "Tenant's View" test-payment button. Runs the same full/partial/overpayment
 // classification the real webhook path uses, without a real bank transfer.
 export async function processPayment(id, amount) {
   if (USE_MOCK) {
