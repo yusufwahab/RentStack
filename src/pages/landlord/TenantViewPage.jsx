@@ -78,12 +78,7 @@ export default function TenantViewPage() {
 
   return (
     <div>
-      <PageBanner image={BANNER_IMAGE} height="h-32">
-        <div>
-          <h1 className="text-white text-xl font-semibold">Tenant's View</h1>
-          <p className="text-[#94A3B8] text-sm">See the app as a tenant would, and simulate a bank transfer to test reconciliation.</p>
-        </div>
-      </PageBanner>
+      <PageBanner image={BANNER_IMAGE} height="h-32" title="Tenant's View" subtitle="Preview the app as your tenant, and test a payment" />
 
       <div className="p-6 md:p-8 space-y-6">
         <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5">

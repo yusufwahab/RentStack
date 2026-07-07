@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { USE_MOCK } from "../config";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -70,7 +71,7 @@ export default function LoginPage() {
             Don't have an account?{" "}
             <Link to="/register" className="text-[#15803D] font-medium hover:underline">Get started</Link>
           </p>
-          <p className="mt-2 text-xs text-[#94A3B8]">Demo mode: enter any email and password to sign in.</p>
+          {USE_MOCK && <p className="mt-2 text-xs text-[#94A3B8]">Demo mode: enter any email and password to sign in.</p>}
         </div>
       </div>
 

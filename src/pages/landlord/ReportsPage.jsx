@@ -81,7 +81,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden mb-8">
+            <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden overflow-x-auto mb-8">
               <div className="px-5 py-4 border-b border-[#E5E7EB]">
                 <h2 className="font-semibold text-[#0B1F17] text-sm">Monthly Collection</h2>
               </div>
@@ -89,7 +89,7 @@ export default function ReportsPage() {
                 <thead>
                   <tr className="border-b border-[#E5E7EB] bg-[#F7FAF8]">
                     {["Month", "Expected", "Collected", "Rate"].map((h) => (
-                      <th key={h} className="text-left px-5 py-3 text-xs font-medium text-[#64748B]">
+                      <th key={h} className="text-left px-5 py-3 text-xs font-medium text-[#64748B] whitespace-nowrap">
                         {h}
                       </th>
                     ))}
@@ -98,10 +98,10 @@ export default function ReportsPage() {
                 <tbody>
                   {data.monthly.map((m) => (
                     <tr key={m.month} className="border-b border-[#F1F5F9] last:border-0">
-                      <td className="px-5 py-3 text-[#0B1F17]">{m.month}</td>
-                      <td className="px-5 py-3 text-xs text-[#64748B]">{formatNaira(m.totalDue)}</td>
-                      <td className="px-5 py-3 font-medium text-[#0B1F17]">{formatNaira(m.totalCollected)}</td>
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-3 text-[#0B1F17] whitespace-nowrap">{m.month}</td>
+                      <td className="px-5 py-3 text-xs text-[#64748B] whitespace-nowrap">{formatNaira(m.totalDue)}</td>
+                      <td className="px-5 py-3 font-medium text-[#0B1F17] whitespace-nowrap">{formatNaira(m.totalCollected)}</td>
+                      <td className="px-5 py-3 whitespace-nowrap">
                         <span className={m.collectionRate >= 80 ? "text-emerald-600" : "text-amber-600"}>
                           {m.collectionRate}%
                         </span>
