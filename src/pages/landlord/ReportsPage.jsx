@@ -8,7 +8,7 @@ import PageBanner from "../../components/ui/PageBanner";
 import Icon from "../../components/ui/Icon";
 import { formatNaira, formatDate, paymentTypeBadge } from "../../utils/format";
 
-const BANNER_IMAGE = "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1200&q=80&auto=format&fit=crop";
+const BANNER_IMAGE = "https://images.unsplash.com/photo-1644043350898-2f4ff1e17912?w=1200&q=80&auto=format&fit=crop";
 
 export default function ReportsPage() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });

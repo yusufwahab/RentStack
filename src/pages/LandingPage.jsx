@@ -6,8 +6,8 @@ import Avatar from "../components/ui/Avatar";
 const IMG = {
   hero: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&q=80&auto=format&fit=crop",
   city: "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=80&auto=format&fit=crop",
-  landlord: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=1000&q=80&auto=format&fit=crop",
-  fintech: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&q=80&auto=format&fit=crop",
+  landlord: "https://images.unsplash.com/photo-1641759344034-c57da59c58d4?w=1000&q=80&auto=format&fit=crop",
+  fintech: "https://images.unsplash.com/photo-1778790508237-3c6cb00f152a?w=800&q=80&auto=format&fit=crop",
   tenant: "https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=800&q=80&auto=format&fit=crop",
   houseMinimal: "https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=800&q=80&auto=format&fit=crop",
   houseVilla: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800&q=80&auto=format&fit=crop",
@@ -211,7 +211,7 @@ export default function LandingPage() {
           </div>
           <div className="relative">
             <div className="rounded-2xl overflow-hidden shadow-sm">
-              <img src={IMG.landlord} alt="Landlord reviewing rent payments at his desk" className="w-full h-72 md:h-96 object-cover" />
+              <img src={IMG.landlord} alt="Landlord celebrating a successful rent collection with a colleague" className="w-full h-72 md:h-96 object-cover" />
             </div>
             <div className="hidden sm:flex absolute -bottom-6 -left-6 bg-white rounded-2xl shadow-lg border border-[#E5E7EB] p-4 items-center gap-3 max-w-[240px]">
               <Avatar name="Chiamaka Eze" className="w-10 h-10" bg="15803D" />
@@ -385,7 +385,7 @@ export default function LandingPage() {
       <section className="bg-white py-20">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-10">
           <div className="text-center md:text-left">
-            <img src={IMG.landlord} alt="Landlord managing properties from a dashboard" className="w-full h-56 object-cover rounded-2xl" />
+            <img src={IMG.landlord} alt="Landlord celebrating with a colleague" className="w-full h-56 object-cover rounded-2xl" />
             <h3 className="mt-6 text-xl font-bold text-[#0B1F17]">Everything in one dashboard</h3>
             <p className="mt-2 text-sm text-[#475569] leading-relaxed">
               See every tenant's payment status at a glance. Know who has paid, who is short, and who owes — without making a single phone call.

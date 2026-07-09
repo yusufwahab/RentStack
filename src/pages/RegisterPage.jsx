@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { requestSignupOtp, verifySignupOtp } from "../services/authService";
+import Icon from "../components/ui/Icon";
 
 const STEPS = ["Property Details", "Account Setup", "Verify Email", "Done"];
 
@@ -91,7 +92,13 @@ export default function RegisterPage() {
       {/* Left — Form */}
       <div className="flex-1 flex flex-col justify-center px-8 md:px-16 bg-white">
         <div className="max-w-sm w-full mx-auto">
-          <Link to="/" className="text-[#0B1F17] font-bold text-lg tracking-tight">RentStack</Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-[#0B1F17] font-bold text-lg tracking-tight hover:text-[#15803D] transition-colors duration-200"
+          >
+            <Icon name="arrowLeft" className="w-4 h-4" />
+            RentStack
+          </Link>
 
           <div className="mt-6 flex gap-2">
             {STEPS.map((s, i) => (
@@ -198,7 +205,7 @@ export default function RegisterPage() {
       {/* Right — Image */}
       <div className="hidden md:flex flex-1 relative">
         <img
-          src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=800&q=80&auto=format&fit=crop"
+          src="https://images.unsplash.com/photo-1641759344034-c57da59c58d4?w=800&q=80&auto=format&fit=crop"
           alt=""
           className="w-full h-full object-cover"
         />

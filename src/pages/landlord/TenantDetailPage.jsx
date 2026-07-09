@@ -14,7 +14,7 @@ import ShareLinkButton from "../../components/ui/ShareLinkButton";
 import { formatNaira, formatDate, formatDateTime, paymentTypeBadge, paymentTypeLabel } from "../../utils/format";
 
 const BANNER_IMAGE = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&q=80&auto=format&fit=crop";
-const STATEMENT_IMAGE = "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&q=80&auto=format&fit=crop";
+const STATEMENT_IMAGE = "https://images.unsplash.com/photo-1644043350898-2f4ff1e17912?w=400&q=80&auto=format&fit=crop";
 
 export default function TenantDetailPage() {
   const { id } = useParams();

@@ -14,7 +14,7 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import EmptyState from "../../components/ui/EmptyState";
 import { formatNaira, formatDateTime, formatDate, paymentTypeBadge } from "../../utils/format";
 
-const MISDIRECTED_EMPTY_IMAGE = "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&q=80&auto=format&fit=crop";
+const MISDIRECTED_EMPTY_IMAGE = "https://images.unsplash.com/photo-1778790508237-3c6cb00f152a?w=400&q=80&auto=format&fit=crop";
 
 export default function PaymentsPage() {
   const [searchParams] = useSearchParams();
