@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAsync } from "../../hooks/useAsync";
-import { getReports, exportCSV } from "../../services/reportService";
+import { getReports, exportCSV, exportAnnualStatement } from "../../services/reportService";
 import Spinner from "../../components/ui/Spinner";
 import ErrorMessage from "../../components/ui/ErrorMessage";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -14,6 +14,8 @@ export default function ReportsPage() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const { data, loading, error, retry } = useAsync(() => getReports(dateRange), [dateRange.from, dateRange.to]);
   const [exporting, setExporting] = useState(false);
+  const [statementYear, setStatementYear] = useState(new Date().getFullYear());
+  const [exportingStatement, setExportingStatement] = useState(false);
 
   async function handleExport() {
     setExporting(true);
@@ -28,6 +30,22 @@ export default function ReportsPage() {
       URL.revokeObjectURL(url);
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleExportStatement() {
+    setExportingStatement(true);
+    try {
+      const csv = await exportAnnualStatement(statementYear);
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `rentstack-annual-statement-${statementYear}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportingStatement(false);
     }
   }
 
@@ -63,6 +81,34 @@ export default function ReportsPage() {
             <Icon name="download" className="w-4 h-4" />
             {exporting ? "Exporting…" : "Export CSV"}
           </button>
+
+          <div className="flex items-end gap-2 ml-auto">
+            <div>
+              <label className="block text-xs font-medium text-[#64748B] mb-1">Annual Statement</label>
+              <select
+                value={statementYear}
+                onChange={(e) => setStatementYear(Number(e.target.value))}
+                className="border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40"
+              >
+                {[0, 1, 2].map((i) => {
+                  const y = new Date().getFullYear() - i;
+                  return (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            <button
+              onClick={handleExportStatement}
+              disabled={exportingStatement}
+              className="flex items-center gap-1.5 border border-[#E5E7EB] text-[#0B1F17] px-4 py-2 rounded-lg text-sm hover:bg-[#F7FAF8] transition-colors duration-200 disabled:opacity-60"
+            >
+              <Icon name="document" className="w-4 h-4" />
+              {exportingStatement ? "Exporting…" : "Download"}
+            </button>
+          </div>
         </div>
 
         {loading && <Spinner />}

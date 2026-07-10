@@ -52,6 +52,8 @@ function AddTenantModal({ properties, onClose, onAdded }) {
     email: "",
     phone: "",
     moveInDate: "",
+    leaseEndDate: "",
+    serviceCharge: "",
     propertyId: properties[0]?.id || "",
   });
   const [loading, setLoading] = useState(false);
@@ -94,12 +96,14 @@ function AddTenantModal({ properties, onClose, onAdded }) {
             { key: "email", label: "Email", placeholder: "tenant@gmail.com", type: "email" },
             { key: "phone", label: "Phone", placeholder: "08012345678" },
             { key: "moveInDate", label: "Move-in Date", type: "date" },
-          ].map(({ key, label, placeholder, type = "text" }) => (
+            { key: "leaseEndDate", label: "Lease End Date (optional)", type: "date", optional: true },
+            { key: "serviceCharge", label: "Service Charge (optional)", type: "number", optional: true },
+          ].map(({ key, label, placeholder, type = "text", optional }) => (
             <div key={key}>
               <label className="block text-xs font-medium text-[#0B1F17] mb-1">{label}</label>
               <input
                 type={type}
-                required
+                required={!optional}
                 value={form[key]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                 placeholder={placeholder}
@@ -107,6 +111,7 @@ function AddTenantModal({ properties, onClose, onAdded }) {
               />
             </div>
           ))}
+          <p className="text-xs text-[#94A3B8]">Guarantor details can be added after the tenant is created, from their profile.</p>
           <button
             type="submit"
             disabled={loading}

@@ -30,6 +30,11 @@ export function mapTenant(row) {
     status: row.status,
     kycTier: row.kyc_tier,
     creditBalance: Number(row.credit_balance || 0),
+    leaseEndDate: row.lease_end_date || undefined,
+    serviceCharge: Number(row.service_charge || 0),
+    guarantorName: row.guarantor_name || undefined,
+    guarantorPhone: row.guarantor_phone || undefined,
+    guarantorRelationship: row.guarantor_relationship || undefined,
     currentCycle: row.currentCycle
       ? {
           due: Number(row.currentCycle.due),
@@ -58,6 +63,34 @@ export function mapPayment(row) {
     senderAccountName: row.sender_account_name,
     tenantName: row.tenantName,
     unit: row.unit,
+  };
+}
+
+export function mapDeposit(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    amount: Number(row.amount),
+    status: row.status,
+    deductions: Number(row.deductions || 0),
+    deductionReason: row.deduction_reason || undefined,
+    receivedAt: row.received_at,
+    refundedAt: row.refunded_at || undefined,
+  };
+}
+
+export function mapMaintenanceRequest(row) {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    tenantName: row.tenantName,
+    unit: row.unit,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at || undefined,
   };
 }
 

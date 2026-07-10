@@ -117,3 +117,17 @@ export function rentReminderSummary(tenant, daysUntilDue, amountDue) {
   const when = daysUntilDue === 0 ? "today" : `in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`;
   return `Hi ${tenant.name.split(" ")[0]}, your rent of ₦${amount} for ${tenant.unit} is due ${when}.`;
 }
+
+export function leaseRenewalEmailHtml(tenant, daysUntilEnd) {
+  return `
+    <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:24px">
+      <h2 style="color:#0B1F17;margin-bottom:8px">Lease renewal coming up</h2>
+      <p style="color:#334155;font-size:14px">Hi ${tenant.name.split(" ")[0]}, your lease for ${tenant.unit} ends in
+        <strong>${daysUntilEnd} day${daysUntilEnd === 1 ? "" : "s"}</strong>. Reach out to your landlord to discuss renewal.</p>
+    </div>`;
+}
+
+// Short plain-text summary for notification_logs.message — see note above.
+export function leaseRenewalSummary(tenant, daysUntilEnd) {
+  return `Hi ${tenant.name.split(" ")[0]}, your lease for ${tenant.unit} ends in ${daysUntilEnd} day${daysUntilEnd === 1 ? "" : "s"}.`;
+}

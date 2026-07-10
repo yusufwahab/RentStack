@@ -60,6 +60,17 @@ create table if not exists tenants (
   -- utils/cycles.js classifyCycle for how this is consumed/replenished.
   credit_balance numeric(12, 2) not null default 0,
 
+  -- Basic lease/billing extras — informational only. lease_end_date powers
+  -- the renewal reminder job; service_charge is billed alongside rent but
+  -- NOT folded into the reconciliation engine's due/credit math (a tenant's
+  -- virtual-account payment is still matched against rent_amount alone —
+  -- service charge is display/total-only in this basic pass).
+  lease_end_date date,
+  service_charge numeric(12, 2) not null default 0,
+  guarantor_name text,
+  guarantor_phone text,
+  guarantor_relationship text,
+
   -- Nomba virtual account fields — populated after a successful
   -- POST /v1/accounts/virtual call. `nomba_account_ref` is the
   -- accountRef *we* generate and send to Nomba; it's the reliable
@@ -91,6 +102,47 @@ create table if not exists tenant_kyc_events (
 );
 
 create index if not exists idx_kyc_events_tenant on tenant_kyc_events (tenant_id);
+
+-- ---------------------------------------------------------------
+-- deposits — one row per tenant's caution/security deposit. Deliberately
+-- simple: a single running record per tenant (received amount, cumulative
+-- deductions + reason, status), not a full itemized ledger of deposit
+-- transactions. Landlord marks it received/refunded manually — this does
+-- NOT flow through the Nomba virtual-account reconciliation engine.
+-- ---------------------------------------------------------------
+create table if not exists deposits (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants (id) on delete cascade,
+  landlord_id uuid not null references landlords (id) on delete cascade,
+  amount numeric(12, 2) not null,
+  status text not null default 'HELD' check (status in ('HELD', 'PARTIALLY_REFUNDED', 'REFUNDED', 'FORFEITED')),
+  deductions numeric(12, 2) not null default 0,
+  deduction_reason text,
+  received_at timestamptz not null default now(),
+  refunded_at timestamptz
+);
+
+create index if not exists idx_deposits_tenant on deposits (tenant_id);
+create index if not exists idx_deposits_landlord on deposits (landlord_id);
+
+-- ---------------------------------------------------------------
+-- maintenance_requests — basic issue-tracking: tenant reports a problem,
+-- landlord moves it through OPEN -> IN_PROGRESS -> RESOLVED. No photos/
+-- attachments or comment thread in this basic pass.
+-- ---------------------------------------------------------------
+create table if not exists maintenance_requests (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants (id) on delete cascade,
+  landlord_id uuid not null references landlords (id) on delete cascade,
+  title text not null,
+  description text,
+  status text not null default 'OPEN' check (status in ('OPEN', 'IN_PROGRESS', 'RESOLVED')),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+
+create index if not exists idx_maintenance_tenant on maintenance_requests (tenant_id);
+create index if not exists idx_maintenance_landlord on maintenance_requests (landlord_id, status);
 
 -- ---------------------------------------------------------------
 -- payments — every inbound transfer RentStack has captured via the
@@ -153,8 +205,8 @@ create table if not exists notification_logs (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references tenants (id) on delete cascade,
   payment_id uuid references payments (id) on delete set null,
-  channel text not null default 'email' check (channel in ('email')),
-  kind text not null default 'receipt' check (kind in ('receipt', 'landlord_alert', 'reminder')),
+  channel text not null default 'email' check (channel in ('email', 'sms')),
+  kind text not null default 'receipt' check (kind in ('receipt', 'landlord_alert', 'reminder', 'lease_reminder')),
   provider text not null default 'Brevo',
   to_address text not null,
   subject text,
@@ -220,6 +272,8 @@ alter table landlords enable row level security;
 alter table properties enable row level security;
 alter table tenants enable row level security;
 alter table tenant_kyc_events enable row level security;
+alter table deposits enable row level security;
+alter table maintenance_requests enable row level security;
 alter table payments enable row level security;
 alter table notification_logs enable row level security;
 alter table webhook_events enable row level security;
@@ -249,6 +303,12 @@ create policy "landlords read own tenants notification logs" on notification_log
   for select using (
     auth.uid() = (select landlord_id from tenants where tenants.id = notification_logs.tenant_id)
   );
+
+create policy "landlords read own deposits" on deposits
+  for select using (auth.uid() = landlord_id);
+
+create policy "landlords read own maintenance requests" on maintenance_requests
+  for select using (auth.uid() = landlord_id);
 
 -- webhook_events and otp_codes have no read policy for authenticated
 -- users — both are backend/service-role only (webhook_events may hold

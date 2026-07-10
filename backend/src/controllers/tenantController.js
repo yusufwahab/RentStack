@@ -44,7 +44,7 @@ export const getTenant = asyncHandler(async (req, res) => {
 // to report the failure (a 500 for the single-add path, a per-row error
 // for the bulk path).
 async function createTenantRecord(landlord, propertyId, data) {
-  const { name, unit, email, phone, moveInDate, rentAmount } = data;
+  const { name, unit, email, phone, moveInDate, rentAmount, leaseEndDate, serviceCharge, guarantorName, guarantorPhone, guarantorRelationship } = data;
   if (!name || !unit || !moveInDate) throw ApiError.badRequest("name, unit and moveInDate are required.");
 
   const tenantId = crypto.randomUUID();
@@ -64,6 +64,11 @@ async function createTenantRecord(landlord, propertyId, data) {
       phone,
       rent_amount: rentAmount || landlord.rent_per_unit || 85000,
       move_in_date: moveInDate,
+      lease_end_date: leaseEndDate || null,
+      service_charge: serviceCharge || 0,
+      guarantor_name: guarantorName || null,
+      guarantor_phone: guarantorPhone || null,
+      guarantor_relationship: guarantorRelationship || null,
       status: "UNPAID",
       nomba_account_ref: account.accountRef,
       virtual_account_number: account.accountNumber,
@@ -121,13 +126,15 @@ export const bulkCreateTenants = asyncHandler(async (req, res) => {
 // PUT /api/tenants/:id
 export const updateTenant = asyncHandler(async (req, res) => {
   await fetchOwnedTenant(req.landlordId, req.params.id); // 404s if not owned
-  const { name, unit, email, phone, rentAmount } = req.body;
-  const { data, error } = await supabaseAdmin
-    .from("tenants")
-    .update({ name, unit, email, phone, rent_amount: rentAmount })
-    .eq("id", req.params.id)
-    .select()
-    .single();
+  const { name, unit, email, phone, rentAmount, leaseEndDate, serviceCharge, guarantorName, guarantorPhone, guarantorRelationship } = req.body;
+  const update = { name, unit, email, phone, rent_amount: rentAmount };
+  if (leaseEndDate !== undefined) update.lease_end_date = leaseEndDate || null;
+  if (serviceCharge !== undefined) update.service_charge = serviceCharge || 0;
+  if (guarantorName !== undefined) update.guarantor_name = guarantorName || null;
+  if (guarantorPhone !== undefined) update.guarantor_phone = guarantorPhone || null;
+  if (guarantorRelationship !== undefined) update.guarantor_relationship = guarantorRelationship || null;
+
+  const { data, error } = await supabaseAdmin.from("tenants").update(update).eq("id", req.params.id).select().single();
   if (error) throw ApiError.internal(error.message);
   res.json(data);
 });

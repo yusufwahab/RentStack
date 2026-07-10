@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAsync } from "../../hooks/useAsync";
 import { getAllTenants, getTenantPaymentHistory, getShareableStatementLink } from "../../services/tenantService";
+import { getTenantMaintenanceRequests, createMaintenanceRequest } from "../../services/maintenanceService";
 import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Avatar from "../../components/ui/Avatar";
@@ -10,6 +11,98 @@ import Icon from "../../components/ui/Icon";
 import ReliabilityScoreCard from "../../components/ui/ReliabilityScoreCard";
 import ShareLinkButton from "../../components/ui/ShareLinkButton";
 import { formatNaira, formatDate, paymentTypeBadge } from "../../utils/format";
+
+function MaintenanceRequestsCard({ tenantId }) {
+  const { data: requests, retry } = useAsync(() => getTenantMaintenanceRequests(tenantId), [tenantId]);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      await createMaintenanceRequest(tenantId, title, description);
+      setTitle("");
+      setDescription("");
+      setShowForm(false);
+      retry();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5 mb-6">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="font-semibold text-[#0B1F17] text-sm">Maintenance</h3>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="text-xs text-[#15803D] font-medium hover:underline">
+            Report an Issue
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="space-y-2 mt-3">
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <input
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What's the issue? e.g. Leaking tap"
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40"
+          />
+          <textarea
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="More detail (optional)"
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#15803D]/40"
+          />
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-[#15803D] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#116932] transition-colors duration-200 disabled:opacity-60"
+            >
+              {submitting ? "Sending…" : "Submit"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="px-3 text-sm text-[#64748B] hover:text-[#0B1F17] transition-colors duration-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {requests && requests.length > 0 && (
+        <div className="mt-3 divide-y divide-[#F1F5F9]">
+          {requests.map((r) => (
+            <div key={r.id} className="py-2.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-[#0B1F17] truncate">{r.title}</p>
+                <p className="text-xs text-[#94A3B8]">{formatDate(r.createdAt)}</p>
+              </div>
+              <StatusBadge status={r.status} />
+            </div>
+          ))}
+        </div>
+      )}
+      {requests && requests.length === 0 && !showForm && (
+        <p className="text-xs text-[#94A3B8] mt-2">No issues reported.</p>
+      )}
+    </div>
+  );
+}
 
 const BANNER_IMAGE = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&q=80&auto=format&fit=crop";
 const STATEMENT_IMAGE = "https://images.unsplash.com/photo-1644043350898-2f4ff1e17912?w=400&q=80&auto=format&fit=crop";
@@ -187,6 +280,34 @@ export default function TenantPortalPage() {
               )}
             </div>
           </div>
+
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5 mb-6 space-y-3">
+            <h3 className="font-semibold text-[#0B1F17] text-sm">Lease Details</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Move-in Date", value: formatDate(tenant.moveInDate) },
+                { label: "Lease Ends", value: tenant.leaseEndDate ? formatDate(tenant.leaseEndDate) : "Not set" },
+                { label: "Monthly Rent", value: formatNaira(tenant.rentAmount) },
+                ...(tenant.serviceCharge > 0 ? [{ label: "Service Charge", value: formatNaira(tenant.serviceCharge) }] : []),
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p className="text-xs text-[#64748B]">{label}</p>
+                  <p className="text-sm text-[#0B1F17] font-medium">{value}</p>
+                </div>
+              ))}
+            </div>
+            {tenant.guarantorName && (
+              <div className="pt-2 border-t border-[#F1F5F9]">
+                <p className="text-xs text-[#64748B]">Guarantor</p>
+                <p className="text-sm text-[#0B1F17]">
+                  {tenant.guarantorName}
+                  {tenant.guarantorPhone ? ` · ${tenant.guarantorPhone}` : ""}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <MaintenanceRequestsCard tenantId={tenant.id} />
 
           <div className="mb-6">
             <ReliabilityScoreCard tenantId={tenant.id} />

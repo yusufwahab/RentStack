@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
 import { currentCycleKey, cycleBounds, wasActiveDuring, classifyCycle, dueDayOf } from "../utils/cycles.js";
-import { runRentReminders } from "../services/reminderService.js";
+import { runRentReminders, runLeaseRenewalReminders } from "../services/reminderService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 // GET /api/dashboard?cycle=YYYY-MM
@@ -137,6 +137,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
 // reminder job, scoped to the calling landlord's own tenants. Exists so a
 // demo/test doesn't have to wait for the cron schedule (see server.js).
 export const sendReminders = asyncHandler(async (req, res) => {
-  const sent = await runRentReminders(req.landlordId);
-  res.json({ sent });
+  const rentSent = await runRentReminders(req.landlordId);
+  const leaseSent = await runLeaseRenewalReminders(req.landlordId);
+  res.json({ sent: rentSent + leaseSent });
 });

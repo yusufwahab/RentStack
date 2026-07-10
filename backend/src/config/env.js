@@ -39,6 +39,14 @@ export const env = {
     senderName: process.env.BREVO_SENDER_NAME || "RentStack",
   },
 
+  // Optional — SMS fallback channel (Termii, Nigerian SMS provider). Unset
+  // is fine: termiiService.sendSms() no-ops with a clear log line instead
+  // of throwing, so email-only deployments are unaffected.
+  termii: {
+    apiKey: process.env.TERMII_API_KEY || "",
+    senderId: process.env.TERMII_SENDER_ID || "RentStack",
+  },
+
   // Dev-only escape hatch so you can hit /api/webhooks/nomba locally with
   // curl/Postman before you have real Nomba signatures to test with.
   // Must be "false" (the default) in any deployed environment.

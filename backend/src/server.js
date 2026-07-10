@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
-import { runRentReminders } from "./services/reminderService.js";
+import { runRentReminders, runLeaseRenewalReminders } from "./services/reminderService.js";
 
 const app = createApp();
 
@@ -19,5 +19,9 @@ cron.schedule("0 8 * * *", () => {
   runRentReminders().catch((err) => {
     // eslint-disable-next-line no-console
     console.error("Rent reminder sweep failed:", err);
+  });
+  runLeaseRenewalReminders().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("Lease renewal reminder sweep failed:", err);
   });
 });

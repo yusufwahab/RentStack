@@ -91,3 +91,36 @@ export async function exportCSV() {
   }
   return get("/api/reports/export/csv", { raw: true });
 }
+
+// MOCK: Replace with GET /api/reports/annual-statement/csv when backend is
+// ready. Basic — reuses the same mock payment data regardless of the
+// requested year (the mock dataset only spans a few months anyway).
+export async function exportAnnualStatement(year) {
+  if (USE_MOCK) {
+    const payments = mockPayments.filter((p) => p.tenantId !== null);
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const key = `${year}-${String(i + 1).padStart(2, "0")}`;
+      const total = payments.filter((p) => p.date.startsWith(key)).reduce((sum, p) => sum + p.amount, 0);
+      return [key, total];
+    });
+    const byTenant = new Map();
+    for (const p of payments) {
+      const tenant = mockTenants.find((t) => t.id === p.tenantId);
+      const key = tenant ? tenant.name : "Unassigned";
+      byTenant.set(key, (byTenant.get(key) || 0) + p.amount);
+    }
+    const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0);
+    const csv = [
+      ["Month", "Total Collected"].join(","),
+      ...months.map((m) => m.join(",")),
+      "",
+      ["Tenant", "Total Collected (Year)"].join(","),
+      ...[...byTenant.entries()].map((e) => e.join(",")),
+      "",
+      ["Year", "Total Collected"].join(","),
+      [year, totalCollected].join(","),
+    ].join("\n");
+    return mockDelay(csv);
+  }
+  return get(`/api/reports/annual-statement/csv?year=${year}`, { raw: true });
+}

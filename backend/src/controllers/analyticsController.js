@@ -88,3 +88,38 @@ export const getTenantRiskTable = asyncHandler(async (req, res) => {
 
   res.json(rows);
 });
+
+// GET /api/analytics/vacancy — average days a unit sat empty between one
+// tenant moving out and the next moving in. Basic: derived retrospectively
+// from existing move_in_date/move_out_date pairs (grouped by property +
+// unit name) rather than a dedicated occupancy-snapshot history, so it
+// works immediately without weeks of accumulated tracking data.
+export const getVacancyStats = asyncHandler(async (req, res) => {
+  const { data: tenants } = await supabaseAdmin
+    .from("tenants")
+    .select("property_id, unit, move_in_date, move_out_date")
+    .eq("landlord_id", req.landlordId);
+
+  const byUnit = new Map();
+  for (const t of tenants || []) {
+    const key = `${t.property_id || "none"}::${t.unit}`;
+    if (!byUnit.has(key)) byUnit.set(key, []);
+    byUnit.get(key).push(t);
+  }
+
+  const gaps = [];
+  for (const group of byUnit.values()) {
+    group.sort((a, b) => new Date(a.move_in_date) - new Date(b.move_in_date));
+    for (let i = 1; i < group.length; i++) {
+      const prevOut = group[i - 1].move_out_date;
+      if (!prevOut) continue;
+      const gapDays = Math.round((new Date(group[i].move_in_date) - new Date(prevOut)) / (1000 * 60 * 60 * 24));
+      if (gapDays >= 0) gaps.push(gapDays);
+    }
+  }
+
+  res.json({
+    avgVacancyDays: gaps.length > 0 ? Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length) : null,
+    turnoverCount: gaps.length,
+  });
+});

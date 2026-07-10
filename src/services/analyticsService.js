@@ -68,3 +68,12 @@ export async function getTenantRiskTable() {
   }
   return get("/api/analytics/tenant-risk");
 }
+
+// MOCK: Replace with GET /api/analytics/vacancy when backend is ready. The
+// mock dataset has no unit with a completed turnover (a CLOSED tenant
+// followed by a new one in the same unit), so this always reports "not
+// enough data yet" in mock mode — same as a real brand-new account.
+export async function getVacancyStats() {
+  if (USE_MOCK) return mockDelay({ avgVacancyDays: null, turnoverCount: 0 });
+  return get("/api/analytics/vacancy");
+}

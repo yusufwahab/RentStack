@@ -155,6 +155,8 @@ see [Troubleshooting](#troubleshooting) if you're ever unsure).
 | `BREVO_SENDER_EMAIL` | no (default `notifications@rentstack.app`) | Must be a verified sender in your Brevo account |
 | `BREVO_SENDER_NAME` | no (default `RentStack`) | Display name on outgoing emails |
 | `INTERNAL_WEBHOOK_ALLOW_UNSIGNED` | no (default `false`) | Dev-only escape hatch to test `/api/webhooks/nomba` locally without a real signature. **Must be `false` in any deployed environment.** |
+| `TERMII_API_KEY` | no | SMS fallback channel for reminders. Unset means `termiiService.sendSms()` no-ops (logged, not thrown) — email-only still works fine |
+| `TERMII_SENDER_ID` | no (default `RentStack`) | Must be a registered/approved sender ID in your Termii account |
 
 ## Setup
 
@@ -252,6 +254,52 @@ template setup is required — see [Known simplifications](#known-simplification
 > ) where property_id is null;
 >
 > alter table notification_logs add column if not exists kind text not null default 'receipt' check (kind in ('receipt', 'landlord_alert', 'reminder'));
+> ```
+
+> **If your database predates deposits, lease/service-charge/guarantor
+> fields, maintenance requests, or SMS notifications**, run this once:
+> ```sql
+> alter table tenants add column if not exists lease_end_date date;
+> alter table tenants add column if not exists service_charge numeric(12, 2) not null default 0;
+> alter table tenants add column if not exists guarantor_name text;
+> alter table tenants add column if not exists guarantor_phone text;
+> alter table tenants add column if not exists guarantor_relationship text;
+>
+> create table if not exists deposits (
+>   id uuid primary key default gen_random_uuid(),
+>   tenant_id uuid not null references tenants (id) on delete cascade,
+>   landlord_id uuid not null references landlords (id) on delete cascade,
+>   amount numeric(12, 2) not null,
+>   status text not null default 'HELD' check (status in ('HELD', 'PARTIALLY_REFUNDED', 'REFUNDED', 'FORFEITED')),
+>   deductions numeric(12, 2) not null default 0,
+>   deduction_reason text,
+>   received_at timestamptz not null default now(),
+>   refunded_at timestamptz
+> );
+> create index if not exists idx_deposits_tenant on deposits (tenant_id);
+> create index if not exists idx_deposits_landlord on deposits (landlord_id);
+> alter table deposits enable row level security;
+> create policy "landlords read own deposits" on deposits for select using (auth.uid() = landlord_id);
+>
+> create table if not exists maintenance_requests (
+>   id uuid primary key default gen_random_uuid(),
+>   tenant_id uuid not null references tenants (id) on delete cascade,
+>   landlord_id uuid not null references landlords (id) on delete cascade,
+>   title text not null,
+>   description text,
+>   status text not null default 'OPEN' check (status in ('OPEN', 'IN_PROGRESS', 'RESOLVED')),
+>   created_at timestamptz not null default now(),
+>   resolved_at timestamptz
+> );
+> create index if not exists idx_maintenance_tenant on maintenance_requests (tenant_id);
+> create index if not exists idx_maintenance_landlord on maintenance_requests (landlord_id, status);
+> alter table maintenance_requests enable row level security;
+> create policy "landlords read own maintenance requests" on maintenance_requests for select using (auth.uid() = landlord_id);
+>
+> alter table notification_logs drop constraint if exists notification_logs_channel_check;
+> alter table notification_logs add constraint notification_logs_channel_check check (channel in ('email', 'sms'));
+> alter table notification_logs drop constraint if exists notification_logs_kind_check;
+> alter table notification_logs add constraint notification_logs_kind_check check (kind in ('receipt', 'landlord_alert', 'reminder', 'lease_reminder'));
 > ```
 
 ### 2. Nomba

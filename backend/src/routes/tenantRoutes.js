@@ -15,6 +15,8 @@ import {
   getTenantNotifications,
   processPayment,
 } from "../controllers/tenantController.js";
+import { getDeposit, recordDeposit, refundDeposit } from "../controllers/depositController.js";
+import { listTenantMaintenanceRequests, createMaintenanceRequest } from "../controllers/maintenanceController.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -32,5 +34,12 @@ router.get("/:id/reliability-score/share", shareTenantReliabilityScore);
 router.get("/:id/statement/share", shareTenantStatement);
 router.get("/:id/notifications", getTenantNotifications);
 router.post("/:id/process-payment", processPayment);
+
+router.get("/:id/deposit", getDeposit);
+router.post("/:id/deposit", recordDeposit);
+router.post("/:id/deposit/refund", refundDeposit);
+
+router.get("/:id/maintenance-requests", listTenantMaintenanceRequests);
+router.post("/:id/maintenance-requests", createMaintenanceRequest);
 
 export default router;

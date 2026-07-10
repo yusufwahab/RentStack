@@ -1,6 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useAsync } from "../../hooks/useAsync";
-import { getCollectionTrends, getTenantRiskTable } from "../../services/analyticsService";
+import { getCollectionTrends, getTenantRiskTable, getVacancyStats } from "../../services/analyticsService";
 import Spinner from "../../components/ui/Spinner";
 import ErrorMessage from "../../components/ui/ErrorMessage";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -38,6 +38,7 @@ function ChartTooltip({ active, payload, label }) {
 export default function AnalyticsPage() {
   const { data: trends, loading: trendsLoading, error: trendsError, retry: retryTrends } = useAsync(getCollectionTrends);
   const { data: risk, loading: riskLoading, error: riskError, retry: retryRisk } = useAsync(getTenantRiskTable);
+  const { data: vacancy } = useAsync(getVacancyStats);
 
   const chartData = (trends?.monthly || []).map((m) => ({ ...m, label: monthLabel(m.month) }));
 
@@ -46,6 +47,20 @@ export default function AnalyticsPage() {
       <PageBanner image={BANNER_IMAGE} height="h-32" title="Analytics" subtitle="Collection trends and tenant risk, at a glance" />
 
       <div className="p-6 md:p-8 space-y-6">
+        <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5">
+          <p className="text-xs text-[#64748B] mb-1">Avg. Vacancy Gap</p>
+          {vacancy && vacancy.avgVacancyDays !== null ? (
+            <>
+              <p className="text-2xl font-bold text-[#0B1F17]">{vacancy.avgVacancyDays} days</p>
+              <p className="text-xs text-[#94A3B8] mt-1">
+                Based on {vacancy.turnoverCount} unit turnover{vacancy.turnoverCount === 1 ? "" : "s"} — time between one tenant moving out and the next moving in.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-[#94A3B8]">Not enough data yet — this fills in once a unit has turned over at least once.</p>
+          )}
+        </div>
+
         <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-5">
           <h2 className="font-semibold text-[#0B1F17] text-sm mb-4">Collection Trend — Last 12 Months</h2>
           {trendsLoading && <Spinner />}

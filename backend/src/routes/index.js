@@ -9,6 +9,7 @@ import webhookRoutes from "./webhookRoutes.js";
 import publicRoutes from "./publicRoutes.js";
 import propertyRoutes from "./propertyRoutes.js";
 import analyticsRoutes from "./analyticsRoutes.js";
+import maintenanceRoutes from "./maintenanceRoutes.js";
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use("/kyc", kycRoutes);
 router.use("/webhooks", webhookRoutes);
 router.use("/properties", propertyRoutes);
 router.use("/analytics", analyticsRoutes);
+router.use("/maintenance", maintenanceRoutes);
 
 export const apiRouter = router;
 export { publicRoutes };
