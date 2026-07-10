@@ -7,11 +7,13 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/landlord/DashboardPage";
+import PropertiesPage from "./pages/landlord/PropertiesPage";
 import TenantsPage from "./pages/landlord/TenantsPage";
 import TenantDetailPage from "./pages/landlord/TenantDetailPage";
 import TenantViewPage from "./pages/landlord/TenantViewPage";
 import PaymentsPage from "./pages/landlord/PaymentsPage";
 import ReportsPage from "./pages/landlord/ReportsPage";
+import AnalyticsPage from "./pages/landlord/AnalyticsPage";
 import SettingsPage from "./pages/landlord/SettingsPage";
 import TenantPortalPage from "./pages/tenant/TenantPortalPage";
 
@@ -28,11 +30,13 @@ export default function App() {
 
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/properties" element={<PropertiesPage />} />
               <Route path="/tenants" element={<TenantsPage />} />
               <Route path="/tenants/:id" element={<TenantDetailPage />} />
               <Route path="/tenant-view" element={<TenantViewPage />} />
               <Route path="/payments" element={<PaymentsPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
 

@@ -175,6 +175,16 @@ export default function TenantPortalPage() {
                   <span className={`font-medium ${color || "text-[#0B1F17]"}`}>{value}</span>
                 </div>
               ))}
+              {tenant.currentCycle.creditApplied > 0 && (
+                <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg">
+                  {formatNaira(tenant.currentCycle.creditApplied)} credit applied from last cycle's overpayment.
+                </p>
+              )}
+              {tenant.currentCycle.credit > 0 && (
+                <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg">
+                  {formatNaira(tenant.currentCycle.credit)} credit carries forward to next month.
+                </p>
+              )}
             </div>
           </div>
 

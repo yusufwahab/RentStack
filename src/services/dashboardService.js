@@ -1,7 +1,7 @@
 import { USE_MOCK } from "../config";
 import { mockDelay } from "../mock/mockDelay";
-import { mockTenants, mockPayments, CURRENT_CYCLE } from "../mock/mockData";
-import { get } from "../api/apiClient";
+import { mockTenants, mockPayments, mockProperties, CURRENT_CYCLE } from "../mock/mockData";
+import { get, post } from "../api/apiClient";
 import { mapPayment, cycleKeyToLabel } from "../utils/apiMappers";
 
 const TODAY = new Date("2026-07-04");
@@ -53,13 +53,22 @@ function cycleSummary(tenant, cycleKey) {
   const paid = payments.reduce((s, p) => s + p.amount, 0);
   const disputed = payments.some((p) => p.type === "disputed");
   const due = tenant.rentAmount;
+  const creditBalance = tenant.creditBalance || 0;
+  const available = paid + creditBalance;
+  if (disputed) return { due, paid, balance: 0, credit: 0, creditApplied: 0, status: "DISPUTED" };
   let status;
-  if (disputed) status = "DISPUTED";
-  else if (paid === 0) status = "UNPAID";
-  else if (paid < due) status = "PARTIAL";
-  else if (paid === due) status = "PAID";
+  if (available === 0) status = "UNPAID";
+  else if (available < due) status = "PARTIAL";
+  else if (available === due) status = "PAID";
   else status = "OVERPAID";
-  return { due, paid, balance: Math.max(due - paid, 0), credit: Math.max(paid - due, 0), status };
+  return {
+    due,
+    paid,
+    balance: Math.max(due - available, 0),
+    credit: Math.max(available - due, 0),
+    creditApplied: Math.min(creditBalance, due),
+    status,
+  };
 }
 
 function dueDayOf(tenant) {
@@ -95,6 +104,7 @@ export async function getDashboardStats(cycleKey = CURRENT_CYCLE) {
         cyclePaid: summary.paid,
         cycleBalance: summary.balance,
         cycleCredit: summary.credit,
+        cycleCreditApplied: summary.creditApplied,
         dueDay,
         daysSinceLastPayment: last ? daysSince(last) : null,
         overdue,
@@ -146,12 +156,10 @@ export async function getDashboardStats(cycleKey = CURRENT_CYCLE) {
       recentPayments,
       tenantRows: rows,
       upcomingDue,
-      property: {
-        name: "Sunshine Court",
-        address: "14 Admiralty Way, Lekki Phase 1, Lagos",
-        totalUnits: mockTenants.length,
-        occupiedUnits: liveActive.length,
-      },
+      properties: mockProperties.map((p) => {
+        const own = mockTenants.filter((t) => t.propertyId === p.id);
+        return { ...p, totalUnits: own.length, occupiedUnits: own.filter((t) => t.status !== "CLOSED").length };
+      }),
     });
   }
 
@@ -161,4 +169,18 @@ export async function getDashboardStats(cycleKey = CURRENT_CYCLE) {
     cycleLabel: cycleLabelFor(stats.cycleKey),
     recentPayments: stats.recentPayments.map(mapPayment),
   };
+}
+
+// MOCK: Replace with POST /api/dashboard/send-reminders when backend is
+// ready. Manual trigger for the daily rent-reminder job — see
+// reminderService.js on the backend for the real send/dedup logic.
+const REMINDER_WINDOWS = [3, 0];
+
+export async function sendRemindersNow() {
+  if (USE_MOCK) {
+    const active = mockTenants.filter((t) => t.status !== "CLOSED" && t.status !== "PAID" && t.status !== "OVERPAID");
+    const due = active.filter((t) => REMINDER_WINDOWS.includes(dueDayOf(t) - TODAY.getDate()));
+    return mockDelay({ sent: due.length }, 500);
+  }
+  return post("/api/dashboard/send-reminders");
 }

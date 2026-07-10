@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import Avatar from "../../components/ui/Avatar";
+import { sendRemindersNow } from "../../services/dashboardService";
 
 export default function SettingsPage() {
   const { currentUser } = useAuth();
@@ -13,11 +14,28 @@ export default function SettingsPage() {
   });
   const [rentPerUnit, setRentPerUnit] = useState(currentUser?.rentPerUnit || 85000);
   const [saved, setSaved] = useState(false);
+  const [remindersSending, setRemindersSending] = useState(false);
+  const [reminderResult, setReminderResult] = useState("");
+  const [reminderError, setReminderError] = useState("");
 
   function handleSave(e) {
     e.preventDefault();
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleSendReminders() {
+    setRemindersSending(true);
+    setReminderError("");
+    setReminderResult("");
+    try {
+      const { sent } = await sendRemindersNow();
+      setReminderResult(sent === 0 ? "No reminders due right now." : `${sent} reminder${sent === 1 ? "" : "s"} sent.`);
+    } catch (err) {
+      setReminderError(err.message);
+    } finally {
+      setRemindersSending(false);
+    }
   }
 
   return (
@@ -60,7 +78,7 @@ export default function SettingsPage() {
         </form>
       </div>
 
-      <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-6">
+      <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-6 mb-6">
         <h2 className="font-semibold text-[#0B1F17] mb-1">Rent Per Unit</h2>
         <p className="text-sm text-[#64748B] mb-4">Default rent amount charged per unit per month.</p>
         <div className="flex items-center gap-3">
@@ -72,6 +90,22 @@ export default function SettingsPage() {
             className="border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-[#15803D]/40"
           />
         </div>
+      </div>
+
+      <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-6">
+        <h2 className="font-semibold text-[#0B1F17] mb-1">Rent Reminders</h2>
+        <p className="text-sm text-[#64748B] mb-4">
+          Tenants due within 3 days are emailed automatically every morning. Use this to send them right now instead of waiting.
+        </p>
+        <button
+          onClick={handleSendReminders}
+          disabled={remindersSending}
+          className="bg-[#15803D] text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-[#116932] transition-colors duration-200 disabled:opacity-60"
+        >
+          {remindersSending ? "Sending…" : "Send Reminders Now"}
+        </button>
+        {reminderResult && <p className="text-sm text-emerald-700 mt-3">{reminderResult}</p>}
+        {reminderError && <p className="text-sm text-red-600 mt-3">{reminderError}</p>}
       </div>
     </div>
   );

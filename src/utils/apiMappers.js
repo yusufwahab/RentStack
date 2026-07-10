@@ -29,12 +29,14 @@ export function mapTenant(row) {
     rentAmount: Number(row.rent_amount),
     status: row.status,
     kycTier: row.kyc_tier,
+    creditBalance: Number(row.credit_balance || 0),
     currentCycle: row.currentCycle
       ? {
           due: Number(row.currentCycle.due),
           paid: Number(row.currentCycle.paid),
           balance: Number(row.currentCycle.balance),
           credit: Number(row.currentCycle.credit),
+          creditApplied: Number(row.currentCycle.creditApplied || 0),
         }
       : undefined,
     disputeNote:

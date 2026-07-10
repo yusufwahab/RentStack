@@ -1,10 +1,7 @@
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
-import { currentCycleKey, cycleBounds, wasActiveDuring, classifyCycle } from "../utils/cycles.js";
+import { currentCycleKey, cycleBounds, wasActiveDuring, classifyCycle, dueDayOf } from "../utils/cycles.js";
+import { runRentReminders } from "../services/reminderService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-
-function dueDayOf(tenant) {
-  return Math.min(new Date(tenant.move_in_date).getDate(), 28);
-}
 
 // GET /api/dashboard?cycle=YYYY-MM
 export const getDashboardStats = asyncHandler(async (req, res) => {
@@ -36,7 +33,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       const d = new Date(p.occurred_at);
       return d >= start && d <= end;
     });
-    const summary = classifyCycle(cyclePayments, Number(tenant.rent_amount));
+    const summary = classifyCycle(cyclePayments, Number(tenant.rent_amount), Number(tenant.credit_balance || 0));
 
     const dueDay = dueDayOf(tenant);
     const cycleDueDate = new Date(start.getFullYear(), start.getMonth(), dueDay);
@@ -47,7 +44,18 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       ? Math.floor((today - new Date(last.occurred_at)) / (1000 * 60 * 60 * 24))
       : null;
 
-    return { ...tenant, cycleStatus: summary.status, cycleDue: summary.due, cyclePaid: summary.paid, cycleBalance: summary.balance, cycleCredit: summary.credit, dueDay, daysSinceLastPayment, overdue };
+    return {
+      ...tenant,
+      cycleStatus: summary.status,
+      cycleDue: summary.due,
+      cyclePaid: summary.paid,
+      cycleBalance: summary.balance,
+      cycleCredit: summary.credit,
+      cycleCreditApplied: summary.creditApplied,
+      dueDay,
+      daysSinceLastPayment,
+      overdue,
+    };
   });
 
   const counts = {
@@ -82,6 +90,33 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     })
     .sort((a, b) => a.dueDate - b.dueDate);
 
+  const { data: propertyRows } = await supabaseAdmin
+    .from("properties")
+    .select("*")
+    .eq("landlord_id", req.landlordId)
+    .order("created_at", { ascending: true });
+  const properties = (propertyRows || []).map((p) => {
+    const own = tenants.filter((t) => t.property_id === p.id);
+    return {
+      id: p.id,
+      name: p.name,
+      address: p.address,
+      totalUnits: own.length,
+      occupiedUnits: own.filter((t) => t.status !== "CLOSED").length,
+    };
+  });
+  // Legacy fallback for landlords with zero properties rows yet (pre-migration
+  // data or a brand-new account that hasn't added a tenant/property yet).
+  if (properties.length === 0) {
+    properties.push({
+      id: null,
+      name: req.landlord.property_name || "My Property",
+      address: req.landlord.property_address,
+      totalUnits: tenants.length,
+      occupiedUnits: liveActive.length,
+    });
+  }
+
   res.json({
     cycleKey,
     totalTenants: rows.length,
@@ -94,11 +129,14 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     recentPayments,
     tenantRows: rows,
     upcomingDue,
-    property: {
-      name: req.landlord.property_name,
-      address: req.landlord.property_address,
-      totalUnits: tenants.length,
-      occupiedUnits: liveActive.length,
-    },
+    properties,
   });
+});
+
+// POST /api/dashboard/send-reminders — manual trigger for the daily rent
+// reminder job, scoped to the calling landlord's own tenants. Exists so a
+// demo/test doesn't have to wait for the cron schedule (see server.js).
+export const sendReminders = asyncHandler(async (req, res) => {
+  const sent = await runRentReminders(req.landlordId);
+  res.json({ sent });
 });

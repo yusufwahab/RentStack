@@ -22,11 +22,28 @@ create table if not exists landlords (
 );
 
 -- ---------------------------------------------------------------
+-- properties — a landlord can own more than one. `landlords.property_name`/
+-- `property_address` predate this table and are kept (harmless, just no
+-- longer authoritative) — every landlord gets at least one properties row,
+-- lazily created from those columns if they never explicitly added one.
+-- ---------------------------------------------------------------
+create table if not exists properties (
+  id uuid primary key default gen_random_uuid(),
+  landlord_id uuid not null references landlords (id) on delete cascade,
+  name text not null,
+  address text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_properties_landlord on properties (landlord_id);
+
+-- ---------------------------------------------------------------
 -- tenants
 -- ---------------------------------------------------------------
 create table if not exists tenants (
   id uuid primary key default gen_random_uuid(),
   landlord_id uuid not null references landlords (id) on delete cascade,
+  property_id uuid references properties (id) on delete set null,
   name text not null,
   unit text not null,
   email text,
@@ -37,6 +54,11 @@ create table if not exists tenants (
   status text not null default 'UNPAID'
     check (status in ('PAID', 'PARTIAL', 'UNPAID', 'OVERPAID', 'DISPUTED', 'CLOSED')),
   kyc_tier text check (kyc_tier in ('Tier 1', 'Tier 2', 'Tier 3')),
+
+  -- Running overpayment credit, carried forward and netted against
+  -- future cycles' rent due — see reconciliationService.js /
+  -- utils/cycles.js classifyCycle for how this is consumed/replenished.
+  credit_balance numeric(12, 2) not null default 0,
 
   -- Nomba virtual account fields — populated after a successful
   -- POST /v1/accounts/virtual call. `nomba_account_ref` is the
@@ -52,6 +74,7 @@ create table if not exists tenants (
 
 create index if not exists idx_tenants_landlord on tenants (landlord_id);
 create index if not exists idx_tenants_account_ref on tenants (nomba_account_ref);
+create index if not exists idx_tenants_property on tenants (property_id);
 
 -- ---------------------------------------------------------------
 -- tenant_kyc_events — audit trail of KYC tier changes, used to
@@ -131,6 +154,7 @@ create table if not exists notification_logs (
   tenant_id uuid not null references tenants (id) on delete cascade,
   payment_id uuid references payments (id) on delete set null,
   channel text not null default 'email' check (channel in ('email')),
+  kind text not null default 'receipt' check (kind in ('receipt', 'landlord_alert', 'reminder')),
   provider text not null default 'Brevo',
   to_address text not null,
   subject text,
@@ -193,6 +217,7 @@ create index if not exists idx_webhook_events_received on webhook_events (receiv
 -- =============================================================
 
 alter table landlords enable row level security;
+alter table properties enable row level security;
 alter table tenants enable row level security;
 alter table tenant_kyc_events enable row level security;
 alter table payments enable row level security;
@@ -205,6 +230,9 @@ create policy "landlords read own row" on landlords
 
 create policy "landlords update own row" on landlords
   for update using (auth.uid() = id);
+
+create policy "landlords read own properties" on properties
+  for select using (auth.uid() = landlord_id);
 
 create policy "landlords read own tenants" on tenants
   for select using (auth.uid() = landlord_id);

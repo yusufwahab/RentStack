@@ -17,9 +17,18 @@ export const mockLandlord = {
 export const CURRENT_CYCLE = "2026-07";
 export const CURRENT_CYCLE_LABEL = "July 2026";
 
+export const mockProperties = [
+  {
+    id: "prop-001",
+    name: "Sunshine Court",
+    address: "14 Admiralty Way, Lekki Phase 1, Lagos",
+  },
+];
+
 export const mockTenants = [
   {
     id: "t-001",
+    propertyId: "prop-001",
     name: "Chiamaka Eze",
     unit: "Flat 1A",
     email: "chiamaka.eze@gmail.com",
@@ -30,11 +39,13 @@ export const mockTenants = [
     moveInDate: "2023-03-01",
     rentAmount: 85000,
     status: "PAID",
-    currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0 },
+    creditBalance: 0,
+    currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0, creditApplied: 0 },
     kycTier: "Tier 3",
   },
   {
     id: "t-002",
+    propertyId: "prop-001",
     name: "Tunde Bakare",
     unit: "Flat 1B",
     email: "tunde.bakare@yahoo.com",
@@ -45,11 +56,13 @@ export const mockTenants = [
     moveInDate: "2023-05-15",
     rentAmount: 85000,
     status: "PAID",
-    currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0 },
+    creditBalance: 0,
+    currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0, creditApplied: 0 },
     kycTier: "Tier 3",
   },
   {
     id: "t-003",
+    propertyId: "prop-001",
     name: "Ngozi Umeh",
     unit: "Flat 2A",
     email: "ngozi.umeh@gmail.com",
@@ -60,11 +73,13 @@ export const mockTenants = [
     moveInDate: "2023-07-01",
     rentAmount: 85000,
     status: "PARTIAL",
-    currentCycle: { due: 85000, paid: 45000, balance: 40000, credit: 0 },
+    creditBalance: 0,
+    currentCycle: { due: 85000, paid: 45000, balance: 40000, credit: 0, creditApplied: 0 },
     kycTier: "Tier 2",
   },
   {
     id: "t-004",
+    propertyId: "prop-001",
     name: "Emeka Okafor",
     unit: "Flat 2B",
     email: "emeka.okafor@outlook.com",
@@ -75,7 +90,8 @@ export const mockTenants = [
     moveInDate: "2023-09-10",
     rentAmount: 85000,
     status: "PARTIAL",
-    currentCycle: { due: 85000, paid: 60000, balance: 25000, credit: 0 },
+    creditBalance: 0,
+    currentCycle: { due: 85000, paid: 60000, balance: 25000, credit: 0, creditApplied: 0 },
     kycTier: "Tier 2",
     kycTierChange: {
       from: "Tier 3",
@@ -86,6 +102,7 @@ export const mockTenants = [
   },
   {
     id: "t-005",
+    propertyId: "prop-001",
     name: "Fatima Sule",
     unit: "Flat 3A",
     email: "fatima.sule@gmail.com",
@@ -96,11 +113,13 @@ export const mockTenants = [
     moveInDate: "2024-01-05",
     rentAmount: 85000,
     status: "UNPAID",
-    currentCycle: { due: 85000, paid: 0, balance: 85000, credit: 0 },
+    creditBalance: 0,
+    currentCycle: { due: 85000, paid: 0, balance: 85000, credit: 0, creditApplied: 0 },
     kycTier: "Tier 1",
   },
   {
     id: "t-006",
+    propertyId: "prop-001",
     name: "Ibrahim Musa",
     unit: "Flat 3B",
     email: "ibrahim.musa@gmail.com",
@@ -111,11 +130,13 @@ export const mockTenants = [
     moveInDate: "2023-11-01",
     rentAmount: 85000,
     status: "OVERPAID",
-    currentCycle: { due: 85000, paid: 100000, balance: 0, credit: 15000 },
+    creditBalance: 15000,
+    currentCycle: { due: 85000, paid: 100000, balance: 0, credit: 15000, creditApplied: 0 },
     kycTier: "Tier 3",
   },
   {
     id: "t-007",
+    propertyId: "prop-001",
     name: "Blessing Okonkwo",
     unit: "Flat 4A",
     email: "blessing.okonkwo@gmail.com",
@@ -126,13 +147,15 @@ export const mockTenants = [
     moveInDate: "2023-06-01",
     rentAmount: 85000,
     status: "DISPUTED",
-    currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0 },
+    creditBalance: 0,
+    currentCycle: { due: 85000, paid: 85000, balance: 0, credit: 0, creditApplied: 0 },
     disputeNote:
       "Payment of ₦85,000 was received on this account, but the sender name (\"Kelechi Nwosu\") does not match the registered tenant. Flagged for manual review before the payment is confirmed.",
     kycTier: "Tier 3",
   },
   {
     id: "t-008",
+    propertyId: "prop-001",
     name: "Segun Adebayo",
     unit: "Flat 4B",
     email: "segun.adebayo@yahoo.com",
@@ -144,7 +167,8 @@ export const mockTenants = [
     moveOutDate: "2026-05-15",
     rentAmount: 85000,
     status: "CLOSED",
-    currentCycle: { due: 0, paid: 0, balance: 0, credit: 0 },
+    creditBalance: 0,
+    currentCycle: { due: 0, paid: 0, balance: 0, credit: 0, creditApplied: 0 },
     kycTier: "Tier 2",
   },
 ];

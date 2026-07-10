@@ -66,6 +66,13 @@ export function paymentReceiptEmailHtml(tenant, payment) {
     </div>`;
 }
 
+// Short plain-text summary for notification_logs.message — the UI renders
+// this as-is (no HTML parsing), so it must never contain markup.
+export function paymentReceiptSummary(tenant, payment) {
+  const amount = Number(payment.amount).toLocaleString("en-NG");
+  return `Hi ${tenant.name.split(" ")[0]}, we've received your payment of ₦${amount} for ${tenant.unit}. Thank you.`;
+}
+
 const TYPE_LABELS = {
   full: "Full payment",
   partial: "Partial payment",
@@ -83,4 +90,30 @@ export function landlordPaymentAlertEmailHtml(landlord, tenant, payment, type) {
         (${tenant.unit}) just paid <strong>₦${amount}</strong>. Status: <strong>${label}</strong>.</p>
       <p style="color:#64748B;font-size:12px">Reference: ${payment.reference}</p>
     </div>`;
+}
+
+// Short plain-text summary for notification_logs.message — see note above.
+export function landlordPaymentAlertSummary(landlord, tenant, payment, type) {
+  const amount = Number(payment.amount).toLocaleString("en-NG");
+  const label = TYPE_LABELS[type] || type;
+  return `Hi ${landlord.name.split(" ")[0]}, ${tenant.name} (${tenant.unit}) just paid ₦${amount}. Status: ${label}.`;
+}
+
+export function rentReminderEmailHtml(tenant, daysUntilDue, amountDue) {
+  const amount = Number(amountDue).toLocaleString("en-NG");
+  const when = daysUntilDue === 0 ? "today" : `in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`;
+  return `
+    <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:24px">
+      <h2 style="color:#0B1F17;margin-bottom:8px">Rent reminder</h2>
+      <p style="color:#334155;font-size:14px">Hi ${tenant.name.split(" ")[0]}, your rent of
+        <strong>₦${amount}</strong> for ${tenant.unit} is due ${when}.</p>
+      <p style="color:#64748B;font-size:12px">Pay into your usual virtual account number to settle this automatically.</p>
+    </div>`;
+}
+
+// Short plain-text summary for notification_logs.message — see note above.
+export function rentReminderSummary(tenant, daysUntilDue, amountDue) {
+  const amount = Number(amountDue).toLocaleString("en-NG");
+  const when = daysUntilDue === 0 ? "today" : `in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`;
+  return `Hi ${tenant.name.split(" ")[0]}, your rent of ₦${amount} for ${tenant.unit} is due ${when}.`;
 }

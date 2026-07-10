@@ -27,6 +27,45 @@ function StatCard({ icon, label, value, sub, color = "text-[#0B1F17]", iconColor
   );
 }
 
+// Severity-scaled radial meter — fill + track are the same hue family (a
+// lighter step of the fill color), matching the emerald/amber/red tiers
+// StatusBadge and ReportsPage already use for collection rate.
+const RING_SEVERITY = [
+  { min: 80, fill: "#15803D", track: "#DCFCE7" },
+  { min: 50, fill: "#D97706", track: "#FEF3C7" },
+  { min: 0, fill: "#DC2626", track: "#FEE2E2" },
+];
+
+function CollectionRing({ rate, size = 116, thickness = 11 }) {
+  const clamped = Math.min(Math.max(rate, 0), 100);
+  const { fill, track } = RING_SEVERITY.find((s) => clamped >= s.min);
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamped / 100);
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={track} strokeWidth={thickness} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={fill}
+          strokeWidth={thickness}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-2xl font-bold text-[#0B1F17]">{clamped}%</span>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { currentUser } = useAuth();
   const [cycle, setCycle] = useState(CYCLE_OPTIONS[0].key);
@@ -175,20 +214,16 @@ export default function DashboardPage() {
           </div>
 
           {/* Collection rate — impossible to miss */}
-          <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-6 mb-6">
-            <div className="flex items-baseline justify-between mb-3">
-              <p className="text-sm font-medium text-[#0B1F17]">
-                <span className="text-3xl font-bold">{stats.collectionRate}%</span> collected this cycle
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-6 mb-6 flex items-center gap-6">
+            <CollectionRing rate={stats.collectionRate} />
+            <div>
+              <p className="text-sm font-medium text-[#0B1F17]">Collected this cycle</p>
+              <p className="text-2xl font-bold text-[#0B1F17] mt-1">
+                {fmt(stats.totalCollected)} <span className="text-base font-normal text-[#64748B]">of {fmt(stats.totalExpected)}</span>
               </p>
-              <p className="text-xs text-[#64748B]">
-                {fmt(stats.totalCollected)} of {fmt(stats.totalExpected)}
-              </p>
-            </div>
-            <div className="h-2.5 w-full bg-[#F1F5F9] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#C9A84C] rounded-full"
-                style={{ width: `${Math.min(stats.collectionRate, 100)}%` }}
-              />
+              {stats.outstanding > 0 && (
+                <p className="text-xs text-[#94A3B8] mt-1">{fmt(stats.outstanding)} still outstanding</p>
+              )}
             </div>
           </div>
 
@@ -277,26 +312,30 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Property + upcoming due dates */}
+          {/* Properties + upcoming due dates */}
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
-              <img src={PROPERTY_IMAGE} alt={stats.property.name} className="w-full h-40 object-cover" />
-              <div className="p-5 flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-semibold text-[#0B1F17]">{stats.property.name}</h3>
-                  <p className="text-xs text-[#64748B] mt-0.5">{stats.property.address}</p>
-                </div>
-                <div className="flex gap-6 text-center">
-                  <div>
-                    <p className="text-lg font-bold text-[#0B1F17]">{stats.property.totalUnits}</p>
-                    <p className="text-xs text-[#64748B]">Total Units</p>
+            <div className="lg:col-span-2 space-y-4">
+              {stats.properties.map((property) => (
+                <div key={property.id ?? property.name} className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">
+                  <img src={PROPERTY_IMAGE} alt={property.name} className="w-full h-40 object-cover" />
+                  <div className="p-5 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold text-[#0B1F17]">{property.name}</h3>
+                      <p className="text-xs text-[#64748B] mt-0.5">{property.address}</p>
+                    </div>
+                    <div className="flex gap-6 text-center">
+                      <div>
+                        <p className="text-lg font-bold text-[#0B1F17]">{property.totalUnits}</p>
+                        <p className="text-xs text-[#64748B]">Total Units</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-[#15803D]">{property.occupiedUnits}</p>
+                        <p className="text-xs text-[#64748B]">Occupied</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-lg font-bold text-[#15803D]">{stats.property.occupiedUnits}</p>
-                    <p className="text-xs text-[#64748B]">Occupied</p>
-                  </div>
                 </div>
-              </div>
+              ))}
             </div>
 
             <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm overflow-hidden">

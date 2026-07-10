@@ -1,5 +1,11 @@
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
-import { sendEmail, paymentReceiptEmailHtml, landlordPaymentAlertEmailHtml } from "./brevoService.js";
+import {
+  sendEmail,
+  paymentReceiptEmailHtml,
+  paymentReceiptSummary,
+  landlordPaymentAlertEmailHtml,
+  landlordPaymentAlertSummary,
+} from "./brevoService.js";
 import { currentCycleKey, cycleBounds, classifyCycle } from "../utils/cycles.js";
 
 // Payment types that represent money that actually belongs to a tenant —
@@ -85,9 +91,10 @@ export async function processIncomingTransfer(transfer) {
       tenant_id: tenant.id,
       payment_id: payment.id,
       channel: "email",
+      kind: "receipt",
       to_address: tenant.email,
       subject,
-      message: html,
+      message: paymentReceiptSummary(tenant, payment),
       status: result.success ? "sent" : "failed",
       provider_message_id: result.messageId || null,
     });
@@ -107,9 +114,10 @@ export async function processIncomingTransfer(transfer) {
         tenant_id: tenant.id,
         payment_id: payment.id,
         channel: "email",
+        kind: "landlord_alert",
         to_address: landlord.email,
         subject,
-        message: html,
+        message: landlordPaymentAlertSummary(landlord, tenant, payment, type),
         status: result.success ? "sent" : "failed",
         provider_message_id: result.messageId || null,
       });
@@ -119,9 +127,9 @@ export async function processIncomingTransfer(transfer) {
   return { status: "processed", paymentId: payment.id, type, tenantId: tenant?.id ?? null };
 }
 
-// Compares this cycle's *total so far, including this new transfer*
-// against rent due, to decide full/partial/overpayment — mirrors the
-// frontend mock's classifyCycle logic.
+// Compares this cycle's *total so far, including this new transfer* (plus
+// any carried credit) against rent due, to decide full/partial/overpayment.
+// Mirrors classifyCycle's "available funds" model in utils/cycles.js.
 async function classifyAgainstCycle(tenant, incomingAmount) {
   const cycle = currentCycleKey();
   const { start, end } = cycleBounds(cycle);
@@ -134,16 +142,20 @@ async function classifyAgainstCycle(tenant, incomingAmount) {
 
   const priorTotal = (cyclePayments || []).reduce((sum, p) => sum + Number(p.amount), 0);
   const newTotal = priorTotal + Number(incomingAmount);
+  const available = newTotal + Number(tenant.credit_balance || 0);
 
-  if (newTotal === Number(tenant.rent_amount)) return "full";
-  if (newTotal < Number(tenant.rent_amount)) return "partial";
+  if (available === Number(tenant.rent_amount)) return "full";
+  if (available < Number(tenant.rent_amount)) return "partial";
   return "overpayment";
 }
 
-// Recomputes and caches a tenant's `status` column from the current
-// cycle's payments — called after every processed transfer and after
-// misdirected-payment resolution so `tenants.status` never drifts from
-// the underlying payment history.
+// Recomputes and caches a tenant's `status` (and `credit_balance`) from the
+// current cycle's payments — called after every processed transfer and
+// after misdirected-payment resolution so `tenants.status` never drifts
+// from the underlying payment history. Credit is only ever written here
+// (single source of truth): consumed to 0 on PAID, replenished to the
+// leftover on OVERPAID, left untouched otherwise (PARTIAL/UNPAID/DISPUTED
+// mean the cycle hasn't resolved, so nothing's been consumed yet).
 export async function refreshTenantStatus(tenantId) {
   const { data: tenant } = await supabaseAdmin.from("tenants").select("*").eq("id", tenantId).single();
   if (!tenant || tenant.status === "CLOSED") return;
@@ -157,25 +169,23 @@ export async function refreshTenantStatus(tenantId) {
     .gte("occurred_at", start.toISOString())
     .lte("occurred_at", end.toISOString());
 
-  const rows = payments || [];
-  const disputed = rows.some((p) => p.type === "disputed");
-  const total = rows.reduce((sum, p) => sum + Number(p.amount), 0);
+  const summary = classifyCycle(payments || [], Number(tenant.rent_amount), Number(tenant.credit_balance || 0));
 
-  let status;
-  if (disputed) status = "DISPUTED";
-  else if (total === 0) status = "UNPAID";
-  else if (total < Number(tenant.rent_amount)) status = "PARTIAL";
-  else if (total === Number(tenant.rent_amount)) status = "PAID";
-  else status = "OVERPAID";
+  const update = { status: summary.status };
+  if (summary.status === "PAID" || summary.status === "OVERPAID") {
+    update.credit_balance = summary.credit;
+  }
 
-  await supabaseAdmin.from("tenants").update({ status }).eq("id", tenantId);
+  await supabaseAdmin.from("tenants").update(update).eq("id", tenantId);
 }
 
-// Current cycle's { due, paid, balance, credit } for a tenant — used by
-// the tenant list/detail endpoints so the frontend's TenantDetail/Tenants
-// pages get the same `currentCycle` shape the mock data always provided.
+// Current cycle's { status, due, paid, balance, credit, creditApplied } for
+// a tenant — used by the tenant list/detail endpoints so the frontend gets
+// a live, credit-aware status even before any new payment triggers
+// refreshTenantStatus (e.g. a tenant fully covered by carried credit with
+// zero new payments this cycle).
 export async function getCurrentCycleSummary(tenant) {
-  if (tenant.status === "CLOSED") return { due: 0, paid: 0, balance: 0, credit: 0 };
+  if (tenant.status === "CLOSED") return { status: "CLOSED", due: 0, paid: 0, balance: 0, credit: 0, creditApplied: 0 };
   const { start, end } = cycleBounds(currentCycleKey());
   const { data: payments } = await supabaseAdmin
     .from("payments")
@@ -183,6 +193,5 @@ export async function getCurrentCycleSummary(tenant) {
     .eq("tenant_id", tenant.id)
     .gte("occurred_at", start.toISOString())
     .lte("occurred_at", end.toISOString());
-  const { status: _status, ...summary } = classifyCycle(payments || [], Number(tenant.rent_amount));
-  return summary;
+  return classifyCycle(payments || [], Number(tenant.rent_amount), Number(tenant.credit_balance || 0));
 }

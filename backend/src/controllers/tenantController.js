@@ -3,6 +3,8 @@ import { supabaseAdmin } from "../config/supabaseAdmin.js";
 import { createVirtualAccount } from "../services/nombaService.js";
 import { getReliabilityScore, createShareToken } from "../services/reliabilityService.js";
 import { getCurrentCycleSummary, processIncomingTransfer } from "../services/reconciliationService.js";
+import { getOrCreateDefaultProperty } from "./propertyController.js";
+import { parseCsv } from "../utils/csv.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 
@@ -21,7 +23,10 @@ export const listTenants = asyncHandler(async (req, res) => {
     .order("created_at", { ascending: true });
   if (error) throw ApiError.internal(error.message);
   const withCycle = await Promise.all(
-    data.map(async (t) => ({ ...t, currentCycle: await getCurrentCycleSummary(t) }))
+    data.map(async (t) => {
+      const currentCycle = await getCurrentCycleSummary(t);
+      return { ...t, status: currentCycle.status, currentCycle };
+    })
   );
   res.json(withCycle);
 });
@@ -30,16 +35,16 @@ export const listTenants = asyncHandler(async (req, res) => {
 export const getTenant = asyncHandler(async (req, res) => {
   const tenant = await fetchOwnedTenant(req.landlordId, req.params.id);
   const currentCycle = await getCurrentCycleSummary(tenant);
-  res.json({ ...tenant, currentCycle });
+  res.json({ ...tenant, status: currentCycle.status, currentCycle });
 });
 
-// POST /api/tenants
-// Creates the DB row AND provisions a real Nomba virtual account. If the
-// Nomba call fails, no tenant row is created — the frontend should surface
-// the error and let the landlord retry rather than end up with a tenant
-// that has no way to collect rent.
-export const createTenant = asyncHandler(async (req, res) => {
-  const { name, unit, email, phone, moveInDate, rentAmount } = req.body;
+// Shared by the single-add endpoint and the bulk-CSV endpoint. Creates the
+// DB row AND provisions a real Nomba virtual account. If the Nomba call
+// fails, no tenant row is created — throws, letting the caller decide how
+// to report the failure (a 500 for the single-add path, a per-row error
+// for the bulk path).
+async function createTenantRecord(landlord, propertyId, data) {
+  const { name, unit, email, phone, moveInDate, rentAmount } = data;
   if (!name || !unit || !moveInDate) throw ApiError.badRequest("name, unit and moveInDate are required.");
 
   const tenantId = crypto.randomUUID();
@@ -51,12 +56,13 @@ export const createTenant = asyncHandler(async (req, res) => {
     .from("tenants")
     .insert({
       id: tenantId,
-      landlord_id: req.landlordId,
+      landlord_id: landlord.id,
+      property_id: propertyId,
       name,
       unit,
       email,
       phone,
-      rent_amount: rentAmount || req.landlord.rent_per_unit || 85000,
+      rent_amount: rentAmount || landlord.rent_per_unit || 85000,
       move_in_date: moveInDate,
       status: "UNPAID",
       nomba_account_ref: account.accountRef,
@@ -68,7 +74,48 @@ export const createTenant = asyncHandler(async (req, res) => {
     .single();
   if (error) throw ApiError.internal(error.message);
 
+  return tenant;
+}
+
+// POST /api/tenants
+export const createTenant = asyncHandler(async (req, res) => {
+  const propertyId = req.body.propertyId || (await getOrCreateDefaultProperty(req.landlord)).id;
+  const tenant = await createTenantRecord(req.landlord, propertyId, req.body);
   res.status(201).json(tenant);
+});
+
+// POST /api/tenants/bulk
+// Body: { propertyId, csv }. `csv` is raw pasted text with a header row:
+// name,unit,email,phone,moveInDate,rentAmount. Processed sequentially (not
+// Promise.all) so Nomba account provisioning isn't hammered concurrently,
+// and so each row's success/failure can be attributed individually.
+export const bulkCreateTenants = asyncHandler(async (req, res) => {
+  const { csv } = req.body;
+  if (!csv) throw ApiError.badRequest("csv is required.");
+  const propertyId = req.body.propertyId || (await getOrCreateDefaultProperty(req.landlord)).id;
+
+  const rows = parseCsv(csv);
+  if (rows.length === 0) throw ApiError.badRequest("No data rows found in the pasted CSV.");
+
+  const created = [];
+  const failed = [];
+  for (const [index, row] of rows.entries()) {
+    try {
+      const tenant = await createTenantRecord(req.landlord, propertyId, {
+        name: row.name,
+        unit: row.unit,
+        email: row.email || undefined,
+        phone: row.phone || undefined,
+        moveInDate: row.moveInDate,
+        rentAmount: row.rentAmount ? Number(row.rentAmount) : undefined,
+      });
+      created.push(tenant);
+    } catch (err) {
+      failed.push({ row: index + 2, name: row.name || "(no name)", error: err.message || "Failed to create tenant." });
+    }
+  }
+
+  res.status(201).json({ created, failed });
 });
 
 // PUT /api/tenants/:id

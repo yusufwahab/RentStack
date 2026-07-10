@@ -222,6 +222,38 @@ template setup is required — see [Known simplifications](#known-simplification
 > alter table payments add column if not exists source text not null default 'nomba' check (source in ('nomba', 'simulated'));
 > ```
 
+> **If your database predates credit carry-forward, multi-property
+> support, or rent reminders**, run this once:
+> ```sql
+> alter table tenants add column if not exists credit_balance numeric(12, 2) not null default 0;
+>
+> create table if not exists properties (
+>   id uuid primary key default gen_random_uuid(),
+>   landlord_id uuid not null references landlords (id) on delete cascade,
+>   name text not null,
+>   address text,
+>   created_at timestamptz not null default now()
+> );
+> create index if not exists idx_properties_landlord on properties (landlord_id);
+> alter table properties enable row level security;
+> create policy "landlords read own properties" on properties
+>   for select using (auth.uid() = landlord_id);
+>
+> alter table tenants add column if not exists property_id uuid references properties (id) on delete set null;
+> create index if not exists idx_tenants_property on tenants (property_id);
+>
+> -- one property per landlord, backfilled from their old single-property fields
+> insert into properties (landlord_id, name, address)
+> select id, coalesce(nullif(property_name, ''), 'My Property'), property_address from landlords
+> where not exists (select 1 from properties where properties.landlord_id = landlords.id);
+>
+> update tenants set property_id = (
+>   select id from properties where properties.landlord_id = tenants.landlord_id limit 1
+> ) where property_id is null;
+>
+> alter table notification_logs add column if not exists kind text not null default 'receipt' check (kind in ('receipt', 'landlord_alert', 'reminder'));
+> ```
+
 ### 2. Nomba
 
 RentStack's Nomba credentials are a **sub-account under a parent

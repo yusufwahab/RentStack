@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
-import { lastNCycles, cycleBounds } from "../utils/cycles.js";
 import { toCsv } from "../utils/csv.js";
+import { computeMonthlyCollection } from "../utils/collectionTrends.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 async function fetchLandlordPayments(landlordId, { from, to } = {}) {
@@ -31,20 +31,7 @@ export const getReports = asyncHandler(async (req, res) => {
   const rentPerUnit = Number(req.landlord.rent_per_unit) || 85000;
   const totalDuePerMonth = activeCount * rentPerUnit;
 
-  const monthly = lastNCycles(4).reverse().map((cycleKey) => {
-    const { start, end } = cycleBounds(cycleKey);
-    const monthPayments = payments.filter((p) => {
-      const d = new Date(p.occurred_at);
-      return d >= start && d <= end;
-    });
-    const totalCollected = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    return {
-      month: cycleKey,
-      totalDue: totalDuePerMonth,
-      totalCollected,
-      collectionRate: totalDuePerMonth > 0 ? Math.round((totalCollected / totalDuePerMonth) * 100) : 0,
-    };
-  });
+  const monthly = computeMonthlyCollection(payments, totalDuePerMonth, 4);
 
   const byTenant = (tenants || []).map((t) => {
     const tenantPayments = payments.filter((p) => p.tenant_id === t.id);

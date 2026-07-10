@@ -7,6 +7,8 @@ import reportRoutes from "./reportRoutes.js";
 import kycRoutes from "./kycRoutes.js";
 import webhookRoutes from "./webhookRoutes.js";
 import publicRoutes from "./publicRoutes.js";
+import propertyRoutes from "./propertyRoutes.js";
+import analyticsRoutes from "./analyticsRoutes.js";
 
 const router = Router();
 
@@ -17,6 +19,8 @@ router.use("/dashboard", dashboardRoutes);
 router.use("/reports", reportRoutes);
 router.use("/kyc", kycRoutes);
 router.use("/webhooks", webhookRoutes);
+router.use("/properties", propertyRoutes);
+router.use("/analytics", analyticsRoutes);
 
 export const apiRouter = router;
 export { publicRoutes };

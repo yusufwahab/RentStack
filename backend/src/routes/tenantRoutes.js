@@ -4,6 +4,7 @@ import {
   listTenants,
   getTenant,
   createTenant,
+  bulkCreateTenants,
   updateTenant,
   offboardTenant,
   getTenantTransactions,
@@ -20,6 +21,7 @@ router.use(requireAuth);
 
 router.get("/", listTenants);
 router.post("/", createTenant);
+router.post("/bulk", bulkCreateTenants);
 router.get("/:id", getTenant);
 router.put("/:id", updateTenant);
 router.post("/:id/offboard", offboardTenant);
